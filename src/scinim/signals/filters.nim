@@ -109,6 +109,9 @@ proc savitzkyGolayFilter*(data: Tensor[float], windowLength, polyOrder: int,
   ## on the edges of the resulting filtered data to accomodate the problem of
   ## bad predictions at the edges of our data, due to extending the data by
   ## zeroes in the convolution.
+  ##
+  ## Note: this implementation depends on LAPACK, as it uses `gelsd` to perform
+  ## linear least squares solving.
   let coeffs = savitzky_golay_coeffs(windowLength, polyOrder)
   result = convolve1D(data, coeffs)
   if interpolateEdges:
