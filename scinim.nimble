@@ -10,3 +10,5 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 1.4.8"
+requires "arraymancer >= 0.7.3"
+requires "polynumeric >= 0.2.0"
