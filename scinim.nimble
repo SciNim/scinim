@@ -4,6 +4,8 @@ author        = "SciNim"
 description   = "The core types and functions of the SciNim ecosystem"
 license       = "MIT"
 
+# C++ codegen catches more bugs than C
+backend       = "cpp"
 
 # Dependencies
 requires "nim >= 1.6.0"
