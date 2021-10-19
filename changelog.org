@@ -1,3 +1,7 @@
+* v0.2.0
+- Add Numpy Array <-> Arraymancer; and more generally Numpy Array <-> ptr
+UncheckedArray interface
+
 * v0.1.0
 - add =signals= submodule consisting of Savitzky-Golay filters and 1D convolution
 - add example showing SVG filter usage
