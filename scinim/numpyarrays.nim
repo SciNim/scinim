@@ -5,7 +5,7 @@ import std/tables
 import arraymancer
 
 import nimpy
-from nimpy {.all.} import newPyObject, nimValueToPy
+from nimpy {.all.} import newPyObject
 import nimpy/[raw_buffers, py_types]
 
 proc dtype*(t: PyObject): PyObject =
@@ -112,8 +112,7 @@ proc obj*[T](x: NumpyArray[T]) : PyObject =
 proc dtype*[T](ar: NumpyArray[T]) : PyObject =
   return dtype(T)
 
-template toPyObjectArgument*[T](v: NumpyArray[T]): PPyObject =
-  ## Allow to pass NumpyArray as varargs when calling python function through
+proc nimValueToPy*[T](v: NumpyArray[T]) : PPyObject {.inline.} =
   nimValueToPy(v.obj())
 
 proc pyprint*[T](ar: NumpyArray[T]) =

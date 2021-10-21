@@ -60,6 +60,15 @@ proc test(arg: tuple[s: string]) =
       pyprint(ret)
       check ret.toTensor() == A.transpose()
 
+    test "Call a Python function using a compistion of NumpyArray":
+      var A: Tensor[float32] = toTensor(@[[1.1'f32, 2.2, 3.3], [4.4'f32, 5.5, 6.6]])
+      var pA = toNdArray(A)
+      var B : Tensor[float32] = toTensor(@[[1.1'f32, 2.2, 3.3], [4.4'f32, 5.5, 6.6]])
+      var pB = toNdArray(B)
+      let py = pyBuiltinsModule()
+      discard nimpy.callMethod(py, "print", (a: pA, b: pB))
+
+
 when isMainModule:
   test((s: "toTensor, toNdArray in main thread"))
   var thr: Thread[tuple[s: string]]
