@@ -179,3 +179,6 @@ proc ndArrayFromTensor[T](t: Tensor[T]): NumpyArray[T] =
 
 proc toNdArray*[T](t: Tensor[T]): NumpyArray[T] =
   ndArrayFromTensor[T](t)
+
+proc pyValueToNim*[T](ar: NumpyArray[T], o: var Tensor[T]) {.inline.} =
+  o = toTensor(ar)
