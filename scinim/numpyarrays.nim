@@ -5,7 +5,6 @@ import std/tables
 import arraymancer
 
 import nimpy
-from nimpy {.all.} import newPyObject
 import nimpy/[raw_buffers, py_types]
 
 proc dtype*(t: PyObject): PyObject =
@@ -107,7 +106,7 @@ proc raw(x: var SharedPtr[PyBuffer]) : var RawPyBuffer =
   x[].raw
 
 proc obj*[T](x: NumpyArray[T]) : PyObject =
-  result = newPyObject(x.pyBuf.raw.obj)
+  pyValueToNim(x.pyBuf.raw.obj, result)
 
 proc dtype*[T](ar: NumpyArray[T]) : PyObject =
   return dtype(T)
