@@ -2,6 +2,8 @@ import std/sequtils
 import std/strformat
 import std/tables
 
+import fusion/smartptrs
+
 import arraymancer
 
 import nimpy
@@ -79,8 +81,6 @@ proc assertNumpyType[T](ndArray: PyObject) =
   else:
     raiseAssert(msg)
 
-import fusion/smartptrs
-
 type
   PyBuffer = object
     raw: RawPyBuffer
@@ -89,9 +89,9 @@ type
     # pyBuf: ptr RawPyBuffer # to keep track of the buffer so that we can release it
     # pyBuf: SharedPtr[RawPyBuffer] # to keep track of the buffer so that we can release it
     pyBuf: SharedPtr[PyBuffer] # to keep track of the buffer so that we can release it
-    data: ptr UncheckedArray[T] # this will be the raw data
-    shape: seq[int]
-    len: int
+    data*: ptr UncheckedArray[T] # this will be the raw data
+    shape*: seq[int]
+    len*: int
 
 proc release*(b: var PyBuffer) =
   b.raw.release()

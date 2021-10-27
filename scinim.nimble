@@ -1,5 +1,5 @@
 # Package
-version       = "0.2.1"
+version       = "0.2.2"
 author        = "SciNim"
 description   = "The core types and functions of the SciNim ecosystem"
 license       = "MIT"
