@@ -3,7 +3,7 @@ import macro_utils
 import arraymancer/laser/strided_iteration/foreach
 
 import arraymancer / tensor
-export Tensor, rank, size, `[]`, `[]=`
+export Tensor, rank, size, `[]`, `[]=`, toTensor, unsafe_raw_offset, is_C_contiguous
 
 
 func len*[T](t: Tensor[T]): int = t.size

@@ -88,7 +88,7 @@ proc arange*[T](start, stop, step = 1, endpoint = false): T =
   var mstop = stop
   if endpoint == true:
     mstop = stop + 1
-  result = newLike(T, mstop - start)
+  result = newLike(T, mstop - start + 1)
   for i in start ..< mstop:
     if (i - start) mod step == 0:
       result[i] = i
