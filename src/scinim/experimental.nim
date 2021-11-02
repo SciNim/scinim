@@ -88,10 +88,15 @@ proc arange*[T](start, stop, step = 1, endpoint = false): T =
   var mstop = stop
   if endpoint == true:
     mstop = stop + 1
-  result = newLike(T, mstop - start + 1)
-  for i in start ..< mstop:
-    if (i - start) mod step == 0:
-      result[i] = i
+  let nElems = ((mstop - start + 1).float / step.float).round.int
+  result = newLike(T, nElems)
+  var
+    i = 0
+    val = start
+  while val < mstop:
+    result[i] = val
+    inc val, step
+    inc i
 
 proc arangeS*(start, stop, step = 1, endpoint = false): seq[int] =
   result = arange[seq[int]](start, stop, step, endpoint)
