@@ -4,6 +4,8 @@ let x = @[1, 2, 3, 4, 5]
 let xt = @[1, 2, 3, 4, 5].toTensor
 let y = linspaceT(0.0, 10.0, 20)
 let yInt = arangeT(1, 6, 1)
+let xIntR = arangeS(-2, 17, 3)
+echo xIntR
 
 echo max(x)
 echo max(xt)
