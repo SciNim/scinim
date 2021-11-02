@@ -47,7 +47,7 @@ template apply_inline*[T](v: var VectorLike[T], body: untyped): untyped =
 proc linspace*[T](start, stop: float, num: int, endpoint = true): T =
   ## linspace similar to numpy's linspace
   ## returns a seq containing a linear spacing starting from `start` to `stop`
-  ## eitther including (endpoint == true) or excluding (endpoint == false) `stop`
+  ## either including (endpoint == true) or excluding (endpoint == false) `stop`
   ## with a number of `num` elements
   var
     step = start
@@ -63,20 +63,19 @@ proc linspace*[T](start, stop: float, num: int, endpoint = true): T =
     result = newLike(T, num)
     for i in 0 ..< num:
       result[i] = step
-      # for every element calculate new value for next iteration
       step += diff
 
 proc linspaceT*(start, stop: float, num: int, endpoint = true): Tensor[float] =
   ## linspace similar to numpy's linspace
-  ## returns a seq containing a linear spacing starting from `start` to `stop`
-  ## eitther including (endpoint == true) or excluding (endpoint == false) `stop`
+  ## returns a `Tensor` containing a linear spacing starting from `start` to `stop`
+  ## either including (endpoint == true) or excluding (endpoint == false) `stop`
   ## with a number of `num` elements
   result = linspace[Tensor[float]](start, stop, num, endpoint)
 
 proc linspaceS*(start, stop: float, num: int, endpoint = true): seq[float] =
   ## linspace similar to numpy's linspace
-  ## returns a seq containing a linear spacing starting from `start` to `stop`
-  ## eitther including (endpoint == true) or excluding (endpoint == false) `stop`
+  ## returns a `seq` containing a linear spacing starting from `start` to `stop`
+  ## either including (endpoint == true) or excluding (endpoint == false) `stop`
   ## with a number of `num` elements
   result = linspace[seq[float]](start, stop, num, endpoint)
 
