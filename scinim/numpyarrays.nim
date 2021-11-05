@@ -9,6 +9,8 @@ import arraymancer
 import nimpy
 import nimpy/[raw_buffers, py_types]
 
+{.push gcsafe.}
+
 proc dtype*(t: PyObject): PyObject =
   nimpy.getAttr(t, "dtype")
 
@@ -22,13 +24,13 @@ proc nptypes(name: string): PyObject =
 
 template dtype*(T: typedesc[int8]): PyObject = nptypes("byte")
 template dtype*(T: typedesc[int16]): PyObject = nptypes("short")
-template dtype*(T: typedesc[int32]): PyObject = nptypes("intc")
-template dtype*(T: typedesc[int64]): PyObject = nptypes("int")
+template dtype*(T: typedesc[int32]): PyObject = nptypes("int32")
+template dtype*(T: typedesc[int64]): PyObject = nptypes("int64")
 
 template dtype*(T: typedesc[uint8]): PyObject = nptypes("ubyte")
 template dtype*(T: typedesc[uint16]): PyObject = nptypes("ushort")
-template dtype*(T: typedesc[uint32]): PyObject = nptypes("uintc")
-template dtype*(T: typedesc[uint64]): PyObject = nptypes("uint")
+template dtype*(T: typedesc[uint32]): PyObject = nptypes("uint32")
+template dtype*(T: typedesc[uint64]): PyObject = nptypes("uint64")
 
 proc dtype*(T: typedesc[int]): PyObject =
   when sizeof(T) == sizeof(int64):
@@ -99,19 +101,19 @@ proc release*(b: var PyBuffer) =
 proc `=destroy`*(b: var PyBuffer) =
   b.release()
 
-proc raw(x: SharedPtr[PyBuffer]) : RawPyBuffer =
+proc raw(x: SharedPtr[PyBuffer]): RawPyBuffer =
   x[].raw
 
-proc raw(x: var SharedPtr[PyBuffer]) : var RawPyBuffer =
+proc raw(x: var SharedPtr[PyBuffer]): var RawPyBuffer =
   x[].raw
 
-proc obj*[T](x: NumpyArray[T]) : PyObject =
+proc obj*[T](x: NumpyArray[T]): PyObject =
   pyValueToNim(x.pyBuf.raw.obj, result)
 
-proc dtype*[T](ar: NumpyArray[T]) : PyObject =
+proc dtype*[T](ar: NumpyArray[T]): PyObject =
   return dtype(T)
 
-proc nimValueToPy*[T](v: NumpyArray[T]) : PPyObject {.inline.} =
+proc nimValueToPy*[T](v: NumpyArray[T]): PPyObject {.inline.} =
   nimValueToPy(v.obj())
 
 proc pyprint*[T](ar: NumpyArray[T]) =
@@ -152,7 +154,7 @@ proc ndArrayFromPtr*[T](t: ptr T, shape: seq[int]): NumpyArray[T] =
   var bsizes = result.len*(sizeof(T) div sizeof(uint8))
   copyMem(addr(result.data[0]), t, bsizes)
 
-proc toUnsafeView*[T](ndArray: NumpyArray[T]) : ptr UncheckedArray[T] =
+proc toUnsafeView*[T](ndArray: NumpyArray[T]): ptr UncheckedArray[T] =
   ndArray.data
 
 # Arraymancer only
@@ -173,6 +175,7 @@ proc ndArrayFromTensor[T](t: Tensor[T]): NumpyArray[T] =
   # Reshape PyObject to Arraymancer Tensor
   let np = pyImport("numpy")
   var shape = t.shape.toSeq()
+  var t = asContiguous(t, rowMajor)
   var buf = cast[ptr T](toUnsafeView(t))
   result = ndArrayFromPtr[T](buf, shape)
 
@@ -181,3 +184,5 @@ proc toNdArray*[T](t: Tensor[T]): NumpyArray[T] =
 
 proc pyValueToNim*[T](ar: NumpyArray[T], o: var Tensor[T]) {.inline.} =
   o = toTensor(ar)
+
+{.pop.}
