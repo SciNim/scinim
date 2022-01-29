@@ -63,29 +63,31 @@ macro λ*(arg, body: untyped): untyped =
 let fn = λ(x -> int): x*x
 echo fn(2)
 
-proc sliceTypes(n: NimNode, sl: Slice[int]): NimNode =
-  result = nnkFormalParams.newTree(ident"auto")
-  var args = nnkIdentDefs.newTree()
+proc sliceTypes(n: NimNode, sl: Slice[int]): tuple[args, genTyps: NimNode] =
+  var args = nnkFormalParams.newTree(ident"auto")
+  var genTyps = nnkIdentDefs.newTree()
   for i in sl.a .. sl.b:
-    args.add n[i]
-  args.add ident"T"
-  args.add newEmptyNode()
-  result.add args
+    let typ = ident($char('A'.ord + i - 1))
+    args.add nnkIdentDefs.newTree(n[i],
+                                  typ,
+                                  newEmptyNode())
+    genTyps.add typ
+  genTyps.add newEmptyNode()
+  genTyps.add newEmptyNode()
+  genTyps = nnkGenericParams.newTree(genTyps)
+  result = (args: args, genTyps: genTyps)
 
 proc generateFunc(arg: NimNode): NimNode =
   expectKind(arg, nnkAsgn)
   let lhs = arg[0]
   let rhs = arg[1]
   let fnName = lhs[0]
-  let fnArgs = sliceTypes(lhs, 1 ..< lhs.len)
+  let (fnArgs, genTyps) = sliceTypes(lhs, 1 ..< lhs.len)
   echo fnArgs.treerepr
   result = newProc(name = fnName, body = rhs)
-  result[2] = nnkGenericParams.newTree(
-    nnkIdentDefs.newTree(
-      ident"T", newEmptyNode(), newEmptyNode()
-    )
-  )
+  result[2] = genTyps
   result[3] = fnArgs
+  echo result.repr
 
 macro mathScope*(args: untyped): untyped =
   echo args.treerepr
