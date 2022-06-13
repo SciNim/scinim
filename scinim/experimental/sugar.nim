@@ -2,6 +2,9 @@ import math
 proc Σ*[T](s: openArray[T]): T = s.sum
 proc Π*[T](s: openArray[T]): T = s.prod
 
+proc √*[T](x: T): T = sqrt(x)
+proc √*[T](x: openArray[T]): T = sqrt(x)
+
 let s = @[1,2,3]
 echo Σ s
 echo Π s
