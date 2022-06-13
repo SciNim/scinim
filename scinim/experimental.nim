@@ -3,48 +3,152 @@
 # if imported causes weird concept mismatch errors
 #import arraymancer/laser/strided_iteration/foreach
 import sequtils
-import macros
+import macros, typetraits
 import math
 
+from algorithm import sorted
 import private / [tensor_utils, macro_utils]
 
 export tensor_utils
-#export tensor
+export macro_utils
+
+template vectorBody(): untyped =
+  ## The concept body that needs to be satisfied such that something is considered to
+  ## be `VectorLike`. We require a `len`, access to the indices and iterators via
+  ## `iter` and `pairIter`. The default `items` and `pairs` are *not* used on purpose,
+  ## to avoid ambiguities (e.g. an arraymancer `Tensor` defines these iterators, but with
+  ## a meaning separate from what we require).
+  x.len is int
+  x[0] is T
+  for el in iter(x):
+    el is T
+  for i, el in pairIter(x):
+    i is int
+    el is T
 
 type
-  #VectorLike[T] = seq[T] | Tensor[T]
-  VectorLike*[T] {.explain.} = concept x
-    x.len is int
-    x[0] is T
-    for el in items(x):
-      el is T
-    for i, el in pairs(x):
-      i is int
-      el is T
+  ScalarLike* {.explain.} = concept x
+    x.isScalar() ## maybe there's a better way, but I think for now a user "opt-in" approach to
+                 ## a type being a `Scalar` seems like a reasonable idea. For any idea I can
+                 ## come up with to check if something is "Scalar", I can think of counter examples
+                 ## that don't match this.
 
-proc newLike[T: seq](dtype: typedesc[T], size: int): T =
+  ## An explicit generic version that makes it easy to get the inner types as an explicit
+  ## generic argument.
+  #VectorLikeG*[T] {.explain.} = concept x
+  VectorLikeG*[T] = concept x #, type T
+    vectorBody()
+
+  ## An implicitly generic object for use cases where the generic inner type is not needed.
+  #VectorLike* {.explain.} = concept x
+  VectorLike* = concept x #, type T
+    type T = typeof(x[0])
+    vectorBody()
+
+proc init*[T: seq](_: typedesc[T], size: int = 0): T =
   result = newSeq[getSubType(T)](size)
 
-template map_inline*[T](v: VectorLike[T], body: untyped): untyped =
-  var res = newLike(type(v), v.len)
-  for i, x {.inject.} in v:
+proc init*[T: seq; U](_: typedesc[T], inner: typedesc[U], size: int = 0): seq[T] =
+  result = seq[U].init()
+
+iterator iter*[T](t: seq[T]): T =
+  for i in 0 ..< t.len:
+    yield t[i]
+
+iterator miter*[T](t: var seq[T]): var T =
+  for i in 0 ..< t.len:
+    yield t[i]
+
+iterator pairIter*[T](t: seq[T]): (int, T) =
+  for i in 0 ..< t.len:
+    yield (i, t[i])
+
+template map_inline*(v: VectorLike, body: untyped): untyped =
+  type outType = typeof((
+    block:
+      var x {.inject.}: type(v[0])
+      body
+  ))
+  type Y = outerType(type(v), outType)
+  var res = Y.init(v.len)
+  for i, x {.inject.} in pairIter(v):
     res[i] = body
   res
 
-template filter_inline*[T](v: VectorLike[T], cond: untyped): untyped =
+template filter_inline*(v: VectorLike, cond: untyped): untyped =
   var idx = newSeqOfCap[int](v.len)
-  for i, x {.inject.} in v:
+  for i, x {.inject.} in pairIter(v):
     if cond:
-      idx.add
-  var res = newLike(type(v), idx.len)
-  for i, x in idx:
-    res[i] = v[x]
+      idx.add i
+  var res = init(type(v), idx.len)
+  for i, val in pairIter(idx):
+    res[i] = v[val]
+  res
 
-template apply_inline*[T](v: var VectorLike[T], body: untyped): untyped =
-  for i, x {.inject.} in v:
+template apply_inline*(v: var VectorLike, body: untyped): untyped =
+  for i, x {.inject.} in pairIter(v):
     v[i] = body
 
-proc linspace*[T](start, stop: float, num: int, endpoint = true): T =
+proc sum*[T](s: VectorLikeG[T]): T =
+  result = T(0)
+  for x in s:
+    result += x
+
+proc prod*[T](s: VectorLikeG[T]): T =
+  result = T(1)
+  for x in s:
+    result *= x
+
+proc mean*[T](s: VectorLikeG[T]): T =
+  result = s.sum / s.len.T
+
+proc `[]`*[T: VectorLike](a: T, inds: VectorLikeG[int]): T {.inline.} =
+  ## given two openArrays, return a sequence of all elements whose indices
+  ## are given in 'inds'
+  ## inputs:
+  ##    a: seq[T] = the sequence from which we take values
+  ##    inds: openArray[int] = the array which contains the indices for the
+  ##         arrays, which we take from 'array'
+  ## outputs:
+  ##    seq[T] = a sequence of all elements s.t. array[ind] in numpy indexing
+  result = T.init(inds.len)
+  for i, ind in pairIter(inds):
+    result[i] = a[ind]
+
+proc toSeq*[T: VectorLike](_: type T, sl: Slice[int]): T =
+  result = T.init(sl.b - sl.a)
+  var i = 0
+  for val in sl.a .. sl.b:
+    result[i] = val
+    inc i
+
+## For some reason the compiler is too dumb for this
+# proc zip*[T: VectorLike; U: VectorLike](a: T, b: U): auto =
+#  type Tup = (getSubType(T), getSubType(U))
+proc zip*[T: VectorLike](a: T, b: T): auto =
+  type Tup = tuple[a: getSubType(T), b: getSubType(T)]
+  doAssert a.len == b.len
+  result = outerType(T, Tup).init(a.len)
+  for i in 0 ..< a.len:
+    ## XXX: `cast` because of compiler bug...
+    result[i] = cast[Tup]((a: a[i], b: b[i]))
+
+template liftCompareProc(op) =
+  ## lift an comparator operator like `<` to work element wise
+  ## on two openArrays `x`, `y` and return a `seq[bool]`
+  proc `op`*[T](x, y: VectorLikeG[T]): VectorLikeG[bool] =
+    result = outerType(type(x), bool).init(x.len)
+    for i, xy in pairIter(zip(x, y)):
+      result[i] = op(xy.a, xy.b)
+
+# lift comparator operators
+liftCompareProc(`<`)
+liftCompareProc(`>`)
+liftCompareProc(`<=`)
+liftCompareProc(`>=`)
+
+proc linspace*[T: VectorLike](_: type T, start, stop: float,
+                              num: int, endpoint = true): T =
   ## linspace similar to numpy's linspace
   ## returns a seq containing a linear spacing starting from `start` to `stop`
   ## either including (endpoint == true) or excluding (endpoint == false) `stop`
@@ -58,28 +162,27 @@ proc linspace*[T](start, stop: float, num: int, endpoint = true): T =
     diff = (stop - start) / float(num)
   if diff < 0:
     # in case start is bigger than stop, return an empty sequence
-    return newLike(T, 0)
+    return init(T, 0)
   else:
-    result = newLike(T, num)
+    result = init(T, num)
     for i in 0 ..< num:
-      result[i] = step
-      step += diff
+      result[i] = start + i.float * diff
 
 proc linspaceT*(start, stop: float, num: int, endpoint = true): Tensor[float] =
   ## linspace similar to numpy's linspace
   ## returns a `Tensor` containing a linear spacing starting from `start` to `stop`
   ## either including (endpoint == true) or excluding (endpoint == false) `stop`
   ## with a number of `num` elements
-  result = linspace[Tensor[float]](start, stop, num, endpoint)
+  result = Tensor[float].linspace(start, stop, num, endpoint)
 
 proc linspaceS*(start, stop: float, num: int, endpoint = true): seq[float] =
   ## linspace similar to numpy's linspace
   ## returns a `seq` containing a linear spacing starting from `start` to `stop`
   ## either including (endpoint == true) or excluding (endpoint == false) `stop`
   ## with a number of `num` elements
-  result = linspace[seq[float]](start, stop, num, endpoint)
+  result = seq[float].linspace(start, stop, num, endpoint)
 
-proc arange*[T](start, stop, step = 1, endpoint = false): T =
+proc arange*[T: VectorLike](_: type T, start, stop, step = 1, endpoint = false): T =
   ## returns seq containing all elements from incl. `start` to excl. `stop`
   ## given a stepping of `step`
   ## `endpoint` allows to include `stop` in the output array.
@@ -88,7 +191,7 @@ proc arange*[T](start, stop, step = 1, endpoint = false): T =
   if endpoint == true:
     mstop = stop + 1
   let nElems = ((mstop - start + 1).float / step.float).round.int
-  result = newLike(T, nElems)
+  result = init(T, nElems)
   var
     i = 0
     val = start
@@ -98,120 +201,120 @@ proc arange*[T](start, stop, step = 1, endpoint = false): T =
     inc i
 
 proc arangeS*(start, stop, step = 1, endpoint = false): seq[int] =
-  result = arange[seq[int]](start, stop, step, endpoint)
+  result = seq[int].arange(start, stop, step, endpoint)
 
 proc arangeT*(start, stop, step = 1, endpoint = false): Tensor[int] =
-  result = arange[Tensor[int]](start, stop, step, endpoint)
+  result = Tensor[int].arange(start, stop, step, endpoint)
 
-proc max*[T](s: VectorLike[T]): T =
+proc max*[T](s: VectorLikeG[T]): T =
   if s.len == 0: return T(0)
   result = s[0]
-  for x in s:
+  for x in iter(s):
     result = max(x, result)
 
-proc min*[T](s: VectorLike[T]): T =
+proc min*[T](s: VectorLikeG[T]): T =
   if s.len == 0: return T(0)
   result = s[0]
-  for x in s:
+  for x in iter(s):
     result = min(x, result)
 
-proc cumProd*[T](x: VectorLike[T]): VectorLike[T] =
+proc cumProd*[T](x: VectorLikeG[T]): VectorLike =
   ## cumulative product for each element of ``x``
   ##
   ## ``cumProd(@[1,2,3,4])`` produces ``@[1,2,6,24]``
-  result = newLike(type(x), x.len)
+  result = init(type(x), x.len)
   var cp = T(1)
-  for i in 0..<x.len:
+  for i in 0 ..< x.len:
     cp = cp * x[i]
     result[i] = cp
 
-proc cumSum*[T](x: VectorLike[T]): VectorLike[T] =
+proc cumSum*[T](x: VectorLikeG[T]): VectorLike =
   ## cumulative sum for each element of ``x``
   ##
   ## ``cumSum(@[1,2,3,4])`` produces ``@[1,3,6,10]``
-  result = newLike(type(x), x.len)
+  result = init(type(x), x.len)
   var cp = T(0)
-  for i in 0..<x.len:
+  for i in 0 ..< x.len:
     cp = cp + x[i]
     result[i] = cp
 
-proc cumCount*[T: SomeInteger](x: VectorLike[T], v: T): VectorLike[T] =
+proc cumCount*[T: SomeInteger](x: VectorLikeG[T], v: T): VectorLike =
   ## cumulative count of a number in ``x``
   ##
   ## the cumulative count of ``3`` for ``@[1,3,3,2,3]`` produces ``@[0,1,2,2,3]``
-  result = newLike(type(x), x.len)
+  result = init(type(x), x.len)
   var cp = T(0)
-  for i in 0..<x.len:
+  for i in 0 ..< x.len:
     if x[i] == v: inc(cp)
     result[i] = cp
 
-proc cumPowSum*[T](x: VectorLike[T], p: T): VectorLike[float] =
+proc cumPowSum*[T](x: VectorLike, p: T): VectorLike =
   ## cumulative sum of ``pow(x[], p)`` for each element
   ## The resultant sequence is of type ``float``
   ##
   ## ``cumPowSum([1,2,3,4],2)`` produces ``@[1, 5, 14, 30]``
-  result = newLike[VectorLike[float]](x.len)
+  result = type(x).init(x.len)
   var cps = 0.0
-  for i in 0..<x.len:
+  for i in 0 ..< x.len:
     cps += pow(x[i].toFloat, p.toFloat)
     result[i] = cps
 
 # ----------- single-result seq math -----------------------
 
-proc product*[T](x: VectorLike[T]): T =
+proc product*[T](x: VectorLikeG[T]): T =
   ## sum each element of ``x``
   ## returning a single value
   ##
   ## ``product(@[1,2,3,4])`` produces ``24`` (= 1 * 2 * 3 * 4)
   var cp = T(1)
-  for i in 0..<x.len: cp *= x[i]
+  for i in 0 ..< x.len: cp *= x[i]
   result = cp
 
-proc sumSquares*[T](x: VectorLike[T]): T =
+proc sumSquares*[T](x: VectorLikeG[T]): T =
   ## sum of ``x[i] * x[i]`` for each element
   ## returning a single value
   ##
   ## ``sumSquares(@[1,2,3,4])``
   ## produces ``30``  (= 1*1 + 2*2 + 3*3 + 4*4)
   var ps = T(0)
-  for i in items(x):
+  for i in iter(x):
     ps += i*i
   result = ps
 
-proc powSum*[T](x: VectorLike[T], p: T): float =
+proc powSum*[T](x: VectorLikeG[T], p: T): float =
   ## sum of ``pow(x[], p)`` of each element
   ## returning a single value
   ##
   ## ``powSum(@[1,2], 3)``
   ## produces ``9``  (= pow(1,3) + pow(2,3))
   var ps = 0.0
-  for i in 0..<x.len: ps += pow(x[i].toFloat, p.toFloat)
+  for i in 0 ..< x.len: ps += pow(x[i].toFloat, p.toFloat)
   result = ps
 
-proc max*[T](x: VectorLike[T], m: T): VectorLike[T] =
+proc max*[T](x: VectorLikeG[T], m: T): VectorLike =
   ## Maximum of each element of ``x`` compared to the value ``m``
   ## as a sequence
   ##
   ## ``max(@[-1,-2,3,4], 0)`` produces ``@[0,0,3,4]``
   if x.len == 0: result = @[m]
   else:
-    result = newLike(type(x), x.len)
-    for i in 0..<x.len:
+    result = init(type(x), x.len)
+    for i in 0 ..< x.len:
       result[i] = max(m, x[i])
 
-proc argmax*[T](x: VectorLike[T]): int =
+proc argmax*(x: VectorLike): int =
   let m = max(x)
-  for i, el in x:
+  for i, el in pairIter(x):
     if el == m:
       return i
 
-proc argmin*[T](x: VectorLike[T]): int =
+proc argmin*(x: VectorLike): int =
   let m = min(x)
-  for i, el in x:
+  for i, el in pairIter(x):
     if el == m:
       return i
 
-proc max*[T](x, y: VectorLike[T]): VectorLike[T] =
+proc max*(x, y: VectorLike): VectorLike =
   ## Note: previous definition using an VectorLike as the type
   ## does not work anymore, since it clashes with with
   ## system.max[T](x, y: T) now
@@ -222,26 +325,26 @@ proc max*[T](x, y: VectorLike[T]): VectorLike[T] =
   ## ``max(@[-1,-2,3,4], @[4,3,2,1])`` produces ``@[4,3,3,4]``
   if x.len == 0: result = @[]
   else:
-    result = newLike(type(x), x.len)
+    result = init(type(x), x.len)
     let xLen = max(x.len, y.len)
     let nlen = min(x.len, y.len)
-    for i in 0..<xLen:
+    for i in 0 ..< xLen:
       if i < nlen: result[i] = max(x[i], y[i])
       elif i < x.len: result[i] = x[i]
       else: result[i] = y[i]
 
-proc min*[T](x: VectorLike[T], m: T): VectorLike[T] =
+proc min*[T](x: VectorLikeG[T], m: T): VectorLike =
   ## Minimum of each element of ``x`` compared to the value ``m``
   ## as a sequence
   ##
   ## ``min(@[1,2,30,40], 10)`` produces ``@[1,2,10,10]``
   if x.len == 0: result = @[m]
   else:
-    result = newLike(type(x), x.len)
-    for i in 0..<x.len:
+    result = init(type(x), x.len)
+    for i in 0 ..< x.len:
       result[i] = min(m, x[i])
 
-proc min*[T](x, y: VectorLike[T]): VectorLike[T] =
+proc min*(x, y: VectorLike): VectorLike =
   ## Note: previous definition using an VectorLike as the type
   ## does not work anymore, since it clashes with with
   ## system.min[T](x, y: T) now
@@ -250,17 +353,17 @@ proc min*[T](x, y: VectorLike[T]): VectorLike[T] =
   ## ``y`` respectively, as a sequence.
   ##
   ## ``min(@[-1,-2,3,4], @[4,3,2,1])`` produces ``@[-1,-2,2,1]``
-  if x.len == 0: result = newLike(type(x), x.len)
+  if x.len == 0: result = init(type(x), x.len)
   else:
-    result = newLike(type(x), x.len)
+    result = init(type(x), x.len)
     let xLen = max(x.len, y.len)
     let nlen = min(x.len, y.len)
-    for i in 0..<xLen:
+    for i in 0 ..< xLen:
       if i < nlen: result[i] = min(x[i], y[i])
       elif i < x.len: result[i] = x[i]
       else: result[i] = y[i]
 
-proc bincount*(x: VectorLike[int], minLength: int): VectorLike[int] =
+proc bincount*(x: VectorLikeG[int], minLength: int): VectorLikeG[int] =
   ## Count of the number of occurrences of each value in
   ## sequence ``x`` of non-negative ints.
   ##
@@ -270,26 +373,26 @@ proc bincount*(x: VectorLike[int], minLength: int): VectorLike[int] =
   ## ``max(max(x), minLength)``
   doAssert min(x) >= 0, "Negative values are not allowed in bincount!"
   let size = max(max(x) + 1, minLength)
-  result = newLike(type(x), size)
-  for idx in x:
+  result = init(type(x), size)
+  for idx in iter(x):
     inc(result[idx])
 
-proc bincount*[T](x: VectorLike[int], minLength: int,
-                  weights: VectorLike[T]): VectorLike[T] =
+proc bincount*(x: VectorLikeG[int], minLength: int,
+               weights: VectorLike): VectorLikeG[int] =
   ## version of `bincount` taking into account weights. The resulting dtype is
   ## the type of the given weights.
   doAssert min(x) >= 0, "Negative values are not allowed in bincount!"
   let size = max(max(x) + 1, minLength)
-  result = newLike(type(x), size)
+  result = init(type(x), size)
   doAssert weights.len == x.len or weights.len == 0
   if weights.len > 0:
-    for wIdx, rIdx in x:
+    for wIdx, rIdx in pairIter(x):
       result[rIdx] += weights[wIdx]
   else:
-    for wIdx, rIdx in x:
+    for wIdx, rIdx in pairIter(x):
       result[rIdx] += 1
 
-proc digitize*[T](x: VectorLike[T], bins: VectorLike[T], right = false): VectorLike[int] =
+proc digitize*(x: VectorLike, bins: VectorLike, right = false): VectorLikeG[int] =
   ## Return the indices of the ``bins`` to which each value of ``x`` belongs.
   ##
   ## Each returned index for *increasing ``bins``* is ``bins[i-1]<=x< bins[i]``
@@ -301,12 +404,12 @@ proc digitize*[T](x: VectorLike[T], bins: VectorLike[T], right = false): VectorL
   ## Note: if ``x`` has values outside of ``bins``, then ``digitize`` returns an index
   ## outside the range of ``bins`` (``0`` or ``bins.len``)
   doAssert(bins.len > 1,"digitize() must have two or more bin values")
-  result = newLike[VectorLike[int]](x.len)
+  result = init[VectorLike[int]](x.len)
   # default of increasing bin values
-  for i in 0..<x.len:
+  for i in 0 ..< x.len:
     result[i] = bins.high + 1
     if bins[1] > bins[0]:
-      for k in 0..<bins.len:
+      for k in 0 ..< bins.len:
         if x[i] < bins[k] and not right:
           result[i] = k
           break
@@ -315,7 +418,7 @@ proc digitize*[T](x: VectorLike[T], bins: VectorLike[T], right = false): VectorL
           break
     #decreasing bin values
     else:
-      for k in 0..<bins.len:
+      for k in 0 ..< bins.len:
         if x[i] >= bins[k] and not right:
           result[i] = k
           break
@@ -323,7 +426,7 @@ proc digitize*[T](x: VectorLike[T], bins: VectorLike[T], right = false): VectorL
           result[i] = k
           break
 
-func areBinsUniform(bin_edges: VectorLike[float]): bool =
+func areBinsUniform(bin_edges: VectorLikeG[float]): bool =
   ## simple check whether bins are uniform
   if bin_edges.len in {0, 1, 2}: return true
   else:
@@ -332,12 +435,12 @@ func areBinsUniform(bin_edges: VectorLike[float]): bool =
       if abs((bin_edges[i+1] - bin_edges[i]) - binWidth) > 1e-8:
         return false
 
-proc rebin*[T](bins: VectorLike[T], by: int): VectorLike[T] =
+proc rebin*[T](bins: VectorLikeG[T], by: int): VectorLike =
   ## Given a set of `bins`, `rebin` combines each consecutive `by` bins
   ## into a single bin, summing the bin contents. The resulting seq thus
   ## has a length of `bins.lev div by`.
   ## TODO: add tests for this!
-  result = newLike(type(bins), bins.len div by)
+  result = init(type(bins), bins.len div by)
   var tmp = T(0)
   var j = 0
   for i in 0 .. bins.high:
@@ -347,8 +450,10 @@ proc rebin*[T](bins: VectorLike[T], by: int): VectorLike[T] =
       inc j
     tmp += bins[i]
 
-proc fillHist*[T](bins: VectorLike[T], data: VectorLike[T],
-                  upperRangeBinRight = true): VectorLike[int] =
+proc fillHist*[T; U: VectorLike](_: typedesc[T],
+                     #bins: VectorLikeG[T], data: VectorLikeG[T],
+                     bins: U, data: U,
+                     upperRangeBinRight = true): T =
   ## Given a set of `bins` (which are interpreted to correspond to the left
   ## bin edge!) and a sequence of `data`, it will fill a histogram according
   ## to the `bins`. That is for each element `d` of `data` the correct bin
@@ -361,14 +466,14 @@ proc fillHist*[T](bins: VectorLike[T], data: VectorLike[T],
   if not upperRangeBinRight:
     # add `inf` bin to `mbins` as upper range
     mbins.add Inf
-  result = newLike[VectorLike[int]](mbins.len - 1)
+  result = outerType(type(bins), int).init(mbins.len - 1)
   let dataSorted = data.sorted
   var
     curIdx = 0
     curBin = mbins[curIdx]
     nextBin = mbins[curIdx + 1]
     idx = 0
-    d: T
+    d: getSubType(type(dataSorted))
   while idx < dataSorted.len:
     d = dataSorted[idx]
     if d >= curBin and d < nextBin:
@@ -385,14 +490,14 @@ proc fillHist*[T](bins: VectorLike[T], data: VectorLike[T],
     else:
       doAssert false, "should never happen!"
 
-proc histogramImpl*[T; U: float | int](
-  x: VectorLike[T],
+proc histogramImpl*[T: VectorLike; U: float | int](
+  x: T,
   dtype: typedesc[U],
-  bins: (int | string | VectorLike[T]) = 10,
+  bins: (int | string | VectorLike) = 10,
   range: tuple[mn, mx: float] = (0.0, 0.0),
-  weights: VectorLike[dtype] = @[],
+  weights: T = @[],
   density: static bool = false,
-  upperRangeBinRight = true): (VectorLike[dtype], VectorLike[float]) =
+  upperRangeBinRight = true): (seq[dtype], seq[float]) =  #(VectorLikeG[dtype], VectorLikeG[float]) =
   ## Compute the histogram of a set of data. Adapted from Numpy's code.
   ## If `bins` is an integer, the required bin edges will be calculated in the
   ## range `range`. If no `range` is given, the `(min, max)` of `x` will be taken.
@@ -409,6 +514,7 @@ proc histogramImpl*[T; U: float | int](
   ## - histogram: seq[dtype] = the resulting histogram binned via `bin_edges`. `dtype`
   ##     is `int` for unweighted histograms and `float` for float weighted histograms
   ## - bin_edges: seq[T] = the bin edges used to create the histogram
+  type X = outerType(type(x), float)
   if x.len == 0:
     raise newException(ValueError, "Cannot compute histogram of empty array!")
 
@@ -437,7 +543,7 @@ proc histogramImpl*[T; U: float | int](
     # for the implementations it's only a few LoC
     raise newException(NotImplementedError, "Automatic choice of number of bins based on different " &
                        "algorithms not implemented yet.")
-  elif type(bins) is VectorLike[T]:
+  elif type(bins) is VectorLike:
     let bin_edges = bins.map_inline(it.float)
     let numBins = bin_edges.len - 1
     # possibly truncate the input range (e.g. bin edges smaller range than data)
@@ -449,17 +555,18 @@ proc histogramImpl*[T; U: float | int](
     if bins == 0:
       raise newException(ValueError, "0 bins is not a valid number of bins!")
     let numBins = bins
-    var bin_edges: VectorLike[float]
+    var bin_edges: X
     if upperRangeBinRight:
-      bin_edges = linspace(mn, mx, numBins + 1, endpoint = true)
+      bin_edges = X.linspace(mn, mx, numBins + 1, endpoint = true)
     else:
       let binWidth = (mx - mn) / (numBins.float - 1)
-      bin_edges = linspace(mn, mx + binWidth, numBins + 1, endpoint = true)
+      bin_edges = X.linspace(mn, mx + binWidth, numBins + 1, endpoint = true)
 
   when T isnot float:
     var x_data = x.map_inline(x.float)
     # redefine locally as floats
-    var weights = weights.map_inline(x.float)
+    let w = weights
+    var weights = w.map_inline(x.float)
   else:
     var x_data = x
     # weights already float too, redefine mutable
@@ -470,7 +577,7 @@ proc histogramImpl*[T; U: float | int](
     let norm = numBins.float / (mx - mn)
     # make sure input array is float and filter to all elements inside valid range
     # x_keep is used to calculate the indices whereas x_data is used for hist calc
-    let idxData = toSeq(0 ..< x_data.len)
+    let idxData = outerType(type(x_data), int).toSeq(0 ..< x_data.len)
     let idxKeep = idxData.filter_inline(x_data[x] >= mn and x_data[x] <= mx)
     var x_keep = idxKeep.map_inline(x_data[x])
     x_data = x_keep
@@ -478,7 +585,7 @@ proc histogramImpl*[T; U: float | int](
     if weights.len > 0:
       weights = idxKeep.map_inline(weights[x])
     # remove potential offset
-    for x in mitems(x_keep):
+    for x in miter(x_keep):
       x = (x - mn) * norm
 
     # compute bin indices
@@ -508,8 +615,9 @@ proc histogramImpl*[T; U: float | int](
     # bins are not uniform
     doAssert weights.len == 0, "Weigths are currently unsupported for histograms with " &
       "unequal bin widths!"
-    let hist = fillHist(bin_edges, x_data,
-                        upperRangeBinRight = upperRangeBinRight)
+    static: echo "TYPE TYPE TYPE ", typeof(bin_edges), " and ", typeof(x_data)
+    let hist = outerType(T, int).fillHist(bin_edges, x_data,
+                                          upperRangeBinRight = upperRangeBinRight)
     when dtype is float:
       result = (hist.map_inline(x.float),
                 bin_edges)
@@ -528,12 +636,12 @@ proc histogramImpl*[T; U: float | int](
         "dtype of `int`!")
 
 proc histogram*[T](
-  x: VectorLike[T],
-  bins: (int | string | VectorLike[T]) = 10,
+  x: T,
+  bins: (int | string | VectorLike) = 10,
   range: tuple[mn, mx: float] = (0.0, 0.0),
   density: static bool = false,
   upperRangeBinRight = true,
-  dtype: typedesc = int): (VectorLike[dtype], VectorLike[float]) =
+  dtype: typedesc = int): (auto, auto) = # VectorLikeG[float]) =
   ## Computes the histogram of `x` given `bins` in the desired
   ## `range`.
   ## Right most bin edge by default is assumed to be right most
@@ -549,6 +657,7 @@ proc histogram*[T](
     type dtype = float
   else:
     type dtype = int
+
   result = histogramImpl(x = x,
                          dtype = dtype,
                          bins = bins,
@@ -556,31 +665,31 @@ proc histogram*[T](
                          density = density,
                          upperRangeBinRight = upperRangeBinRight)
 
-proc histogram*[T; U: float | int](
-  x: VectorLike[T],
-  weights: VectorLike[U],
-  bins: (int | string | VectorLike[T]) = 10,
-  range: tuple[mn, mx: float] = (0.0, 0.0),
-  density: static bool = false,
-  upperRangeBinRight = true): (VectorLike[U], VectorLike[float]) =
-  ## Computes the histogram of `x` given `bins` in the desired
-  ## `range`.
-  ## Right most bin edge by default is assumed to be right most
-  ## bin edge, can be changed via `upperRangeBinRight`. If weights
-  ## are not desired, see the `histogram` overload above. For a more
-  ## detailed docstring see `histogramImpl`.
-  ##
-  ## `density` is a static argument, because we a density normalized
-  ## histogram returns float values, whereas a normal histogram is
-  ## a sequence of ints.
-  when density:
-    type dtype = float
-  else:
-    type dtype = U
-  result = histogramImpl(x = x,
-                         dtype = dtype,
-                         bins = bins,
-                         range = range,
-                         weights = weights,
-                         density = density,
-                         upperRangeBinRight = upperRangeBinRight)
+#proc histogram*[T; U: float | int](
+#  x: VectorLike,
+#  weights: VectorLikeG[U],
+#  bins: (int | string | VectorLike) = 10,
+#  range: tuple[mn, mx: float] = (0.0, 0.0),
+#  density: static bool = false,
+#  upperRangeBinRight = true): (VectorLikeG[U], VectorLikeG[float]) =
+#  ## Computes the histogram of `x` given `bins` in the desired
+#  ## `range`.
+#  ## Right most bin edge by default is assumed to be right most
+#  ## bin edge, can be changed via `upperRangeBinRight`. If weights
+#  ## are not desired, see the `histogram` overload above. For a more
+#  ## detailed docstring see `histogramImpl`.
+#  ##
+#  ## `density` is a static argument, because we a density normalized
+#  ## histogram returns float values, whereas a normal histogram is
+#  ## a sequence of ints.
+#  when density:
+#    type dtype = float
+#  else:
+#    type dtype = U
+#  result = histogramImpl(x = x,
+#                         dtype = dtype,
+#                         bins = bins,
+#                         range = range,
+#                         weights = weights,
+#                         density = density,
+#                         upperRangeBinRight = upperRangeBinRight)
