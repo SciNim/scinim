@@ -1,6 +1,14 @@
 # scinim
 The core types and functions of the SciNim ecosystem
 
+## TODO
+
+- merge with `sugar` branch
+- make `sugar` use the concepts
+- implement equivalent to `sequtils` procedures based on concepts both
+  for general usability & to show concept based `sequtils` works
+  - allow consuming iterators in all `sequtils` like templates
+
 
 ## Vector / Scalar features we need
 
