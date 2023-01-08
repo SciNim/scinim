@@ -6,7 +6,7 @@ import sequtils
 import macros, typetraits
 import math
 
-from algorithm import sorted
+from algorithm import nil
 import private / [tensor_utils, macro_utils]
 
 export tensor_utils
@@ -25,6 +25,9 @@ template vectorBody(): untyped =
   for i, el in pairIter(x):
     i is int
     el is T
+  ## XXX: if we use this together with `{.explain.}` the compiler explodes by eating all RAM
+  ## Without `{.explain.}` it causes the concept not to match for Tensor anymore
+  #x.toUnsafeView() is (ptr UncheckedArray[T])
 
 type
   ScalarLike* {.explain.} = concept x
@@ -51,6 +54,11 @@ proc init*[T: seq](_: typedesc[T], size: int = 0): T =
 proc init*[T: seq; U](_: typedesc[T], inner: typedesc[U], size: int = 0): seq[T] =
   result = seq[U].init()
 
+proc toUnsafeView*[T](s: seq[T]): ptr UncheckedArray[T] =
+  result = cast[ptr UncheckedArray[T]](s[0].addr)
+
+proc high*[T: VectorLike](x: T): int = x.len - 1
+
 iterator iter*[T](t: seq[T]): T =
   for i in 0 ..< t.len:
     yield t[i]
@@ -71,7 +79,10 @@ template map_inline*(v: VectorLike, body: untyped): untyped =
   ))
   type Y = outerType(type(v), outType)
   var res = Y.init(v.len)
+  static: echo "OUTTYPE ", typeof(Y), " typeof ", typeof(res)
   for i, x {.inject.} in pairIter(v):
+    static: echo "type of ele ", typeof(x)
+    static: echo "type of body ", typeof(body)
     res[i] = body
   res
 
@@ -122,13 +133,21 @@ proc toSeq*[T: VectorLike](_: type T, sl: Slice[int]): T =
     result[i] = val
     inc i
 
+proc sorted*[T: VectorLike](x: T): T =
+  ## Returns a sorted version of the given `x`
+  result = x
+  ## XXX: this does not work for some reason
+  algorithm.sort(toOpenArray(result.toUnsafeView(),
+                             0,
+                             result.high))
+
 ## For some reason the compiler is too dumb for this
 # proc zip*[T: VectorLike; U: VectorLike](a: T, b: U): auto =
 #  type Tup = (getSubType(T), getSubType(U))
-proc zip*[T: VectorLike](a: T, b: T): auto =
-  type Tup = tuple[a: getSubType(T), b: getSubType(T)]
+proc zip*[T; U](a: VectorLikeG[T], b: VectorLikeG[U]): auto =
+  type Tup = tuple[a: T, b: U]
   doAssert a.len == b.len
-  result = outerType(T, Tup).init(a.len)
+  result = outerType(type(a), Tup).init(a.len)
   for i in 0 ..< a.len:
     ## XXX: `cast` because of compiler bug...
     result[i] = cast[Tup]((a: a[i], b: b[i]))
@@ -138,7 +157,7 @@ template liftCompareProc(op) =
   ## on two openArrays `x`, `y` and return a `seq[bool]`
   proc `op`*[T](x, y: VectorLikeG[T]): VectorLikeG[bool] =
     result = outerType(type(x), bool).init(x.len)
-    for i, xy in pairIter(zip(x, y)):
+    for (i, xy) in pairIter(zip(x, y)):
       result[i] = op(xy.a, xy.b)
 
 # lift comparator operators
@@ -363,7 +382,7 @@ proc min*(x, y: VectorLike): VectorLike =
       elif i < x.len: result[i] = x[i]
       else: result[i] = y[i]
 
-proc bincount*(x: VectorLikeG[int], minLength: int): VectorLikeG[int] =
+proc bincount*(x: VectorLike, minLength: int): VectorLikeG[int] =
   ## Count of the number of occurrences of each value in
   ## sequence ``x`` of non-negative ints.
   ##
@@ -373,6 +392,7 @@ proc bincount*(x: VectorLikeG[int], minLength: int): VectorLikeG[int] =
   ## ``max(max(x), minLength)``
   doAssert min(x) >= 0, "Negative values are not allowed in bincount!"
   let size = max(max(x) + 1, minLength)
+  static: echo "TYPE OF ISS ??? ", type(x)
   result = init(type(x), size)
   for idx in iter(x):
     inc(result[idx])
@@ -490,14 +510,22 @@ proc fillHist*[T; U: VectorLike](_: typedesc[T],
     else:
       doAssert false, "should never happen!"
 
-proc histogramImpl*[T: VectorLike; U: float | int](
-  x: T,
+type
+  Missing* = object
+  W* = Missing | VectorLike
+
+proc missing*(): Missing = discard
+
+proc histogramImpl*[T: int|float; U: float | int; W](
+  arg: VectorLikeG[T],
   dtype: typedesc[U],
   bins: (int | string | VectorLike) = 10,
   range: tuple[mn, mx: float] = (0.0, 0.0),
-  weights: T = @[],
+  weights: W = missing(),
   density: static bool = false,
-  upperRangeBinRight = true): (seq[dtype], seq[float]) =  #(VectorLikeG[dtype], VectorLikeG[float]) =
+  upperRangeBinRight = true): auto = #(genericHead(type(x))[dtype],
+    #genericHead(type(x))[float]) =
+  #(VectorLikeG[dtype], VectorLikeG[float]) =
   ## Compute the histogram of a set of data. Adapted from Numpy's code.
   ## If `bins` is an integer, the required bin edges will be calculated in the
   ## range `range`. If no `range` is given, the `(min, max)` of `x` will be taken.
@@ -514,12 +542,17 @@ proc histogramImpl*[T: VectorLike; U: float | int](
   ## - histogram: seq[dtype] = the resulting histogram binned via `bin_edges`. `dtype`
   ##     is `int` for unweighted histograms and `float` for float weighted histograms
   ## - bin_edges: seq[T] = the bin edges used to create the histogram
-  type X = outerType(type(x), float)
-  if x.len == 0:
+
+
+  ## XXX: possibly rewrite to use `seq` internally for some things (e.g. `fillHist` requires
+  ## `add` calls) and convert to correct type at the end?
+  type X = outerType(type(arg), float)
+  if arg.len == 0:
     raise newException(ValueError, "Cannot compute histogram of empty array!")
 
-  if weights.len > 0 and weights.len != x.len:
-    raise newException(ValueError, "The number of weights needs to be equal to the number of elements in the input seq!")
+  when W isnot Missing:
+    if weights.len > 0 and weights.len != arg.len:
+      raise newException(ValueError, "The number of weights needs to be equal to the number of elements in the input seq!")
   var uniformBins = true # are bins uniform?
 
   # parse the range parameter
@@ -530,8 +563,8 @@ proc histogramImpl*[T: VectorLike; U: float | int](
     raise newException(ValueError, "One of the input ranges is Inf!")
 
   if mn == 0.0 and mx == 0.0:
-    mn = x.min.float
-    mx = x.max.float
+    mn = arg.min.float
+    mx = arg.max.float
   if mn > mx:
     raise newException(ValueError, "Max range must be larger than min range!")
   elif mn == mx:
@@ -544,7 +577,7 @@ proc histogramImpl*[T: VectorLike; U: float | int](
     raise newException(NotImplementedError, "Automatic choice of number of bins based on different " &
                        "algorithms not implemented yet.")
   elif type(bins) is VectorLike:
-    let bin_edges = bins.map_inline(it.float)
+    let bin_edges = bins.map_inline(x.float)
     let numBins = bin_edges.len - 1
     # possibly truncate the input range (e.g. bin edges smaller range than data)
     mn = min(bin_edges[0], mn)
@@ -563,14 +596,20 @@ proc histogramImpl*[T: VectorLike; U: float | int](
       bin_edges = X.linspace(mn, mx + binWidth, numBins + 1, endpoint = true)
 
   when T isnot float:
-    var x_data = x.map_inline(x.float)
+    var x_data = arg.map_inline(x.float)
     # redefine locally as floats
-    let w = weights
-    var weights = w.map_inline(x.float)
+    when W isnot Missing:
+      let w: VectorLikeG[T] = weights
+      var weights = w.map_inline(x.float)
+    else:
+      var weights = outerType(type(arg), float).init(0)
   else:
-    var x_data = x
+    var x_data = arg
     # weights already float too, redefine mutable
-    var weights = weights
+    when W isnot Missing:
+      var weights: VectorLikeG[float] = weights
+    else:
+      var weights = outerType(type(arg), float).init(0)
 
   if uniformBins:
     # normalization
@@ -616,8 +655,8 @@ proc histogramImpl*[T: VectorLike; U: float | int](
     doAssert weights.len == 0, "Weigths are currently unsupported for histograms with " &
       "unequal bin widths!"
     static: echo "TYPE TYPE TYPE ", typeof(bin_edges), " and ", typeof(x_data)
-    let hist = outerType(T, int).fillHist(bin_edges, x_data,
-                                          upperRangeBinRight = upperRangeBinRight)
+    let hist = outerType(type(arg), int).fillHist(bin_edges, x_data,
+                                                  upperRangeBinRight = upperRangeBinRight)
     when dtype is float:
       result = (hist.map_inline(x.float),
                 bin_edges)

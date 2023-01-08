@@ -3,9 +3,9 @@ import macro_utils
 import arraymancer/laser/strided_iteration/foreach
 
 import arraymancer / tensor
-export Tensor, rank, size, `[]`, `[]=`, toTensor, unsafe_raw_offset, is_C_contiguous# , display, `$`
+export Tensor, rank, size, `[]`, `[]=`, toTensor, unsafe_raw_offset, is_C_contiguous, toUnsafeView# , display, `$`
 
-func len*[T](t: Tensor[T]): int = t.size
+func len*[T](t: Tensor[T]): int = t.size.int
 
 iterator iter*[T](t: Tensor[T]): T =
   doAssert t.rank == 1
@@ -43,3 +43,11 @@ proc init*[T: Tensor](_: typedesc[T], size: int = 0): T =
 
 proc init*[T: Tensor; U](_: typedesc[T], inner: typedesc[U], size: int = 0): Tensor[T] =
   result = Tensor[U].init()
+
+proc add*[T](t: var Tensor[T], val: T) =
+  ## XXX: warning: inefficient as it requires reallocation!
+  var tmp = newTensorUninit[T](t.len + 1)
+  let num = t.len
+  tmp[0 ..< num] = t
+  tmp[num] = val
+  t = tmp

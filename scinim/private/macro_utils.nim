@@ -21,7 +21,7 @@ macro getSubType*(TT: typed): untyped =
   # assign symbol to result
   result = quote do:
     `res`
-  echo "GET SUB TYPE ", result.treerepr
+  echo "GET SUB TYPE ", result.treerepr, " from ", TT.treerepr
 
 macro getOuterType*(TT: typed): untyped =
   ## macro to get the subtype of a nested type by iterating
@@ -46,9 +46,10 @@ macro outerType*(TT: typed, arg: typed): untyped =
   var res = TT.getTypeInst.stripTypedesc()
   echo "res ", res.treerepr
   echo TT.treerepr
-  echo TT.getType.treerepr
-  echo TT.getTypeImpl.treerepr
-  echo TT.getTypeInst.treerepr
+  echo TT.typeKind
+  #echo TT.getType.treerepr
+  #echo TT.getTypeImpl.treerepr
+  #echo TT.getTypeInst.treerepr
   if res.kind != nnkBracketExpr:
     res = TT.getType.stripTypedesc()
   #doAssert res.kind == nnkBracketExpr
