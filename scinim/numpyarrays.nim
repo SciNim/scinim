@@ -87,7 +87,7 @@ type
   PyBuffer = object
     raw: RawPyBuffer
 
-  NumpyArray[T] = object
+  NumpyArray*[T] = object
     # pyBuf: ptr RawPyBuffer # to keep track of the buffer so that we can release it
     # pyBuf: SharedPtr[RawPyBuffer] # to keep track of the buffer so that we can release it
     pyBuf: SharedPtr[PyBuffer] # to keep track of the buffer so that we can release it

@@ -1,3 +1,6 @@
+* v0.2.4
+- export ~NumpyArray~ data type
+
 * v0.2.0
 - Add Numpy Array <-> Arraymancer; and more generally Numpy Array <-> ptr
 UncheckedArray interface
