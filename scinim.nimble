@@ -1,5 +1,5 @@
 # Package
-version       = "0.2.4"
+version       = "0.2.5"
 author        = "SciNim"
 description   = "The core types and functions of the SciNim ecosystem"
 license       = "MIT"
@@ -9,7 +9,7 @@ backend       = "cpp"
 
 # Dependencies
 requires "nim >= 1.4.0"
-requires "fusion"
+requires "threading"
 requires "arraymancer >= 0.7.3"
 requires "polynumeric >= 0.2.0"
 requires "nimpy >= 0.2.0"
