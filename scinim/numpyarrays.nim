@@ -2,7 +2,7 @@ import std/sequtils
 import std/strformat
 import std/tables
 
-import fusion/smartptrs
+import threading/smartptrs
 
 import arraymancer
 
