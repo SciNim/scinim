@@ -1,5 +1,4 @@
-forLoop took 527 milliseconds, 957 microseconds, and 83 nanoseconds
-modArrayInPlace.nim
+# Python output
 Python => main()
 BEGIN
 ----------------
@@ -7,7 +6,7 @@ BEGIN
 1)
 Nim code took : res.elapsed= 527.957  ms
 res.value= 193151139.8816967
-res= 193151139.8816967
+res= 193151139.8816967 
 ndIter loop  took :  535.6743545419886  seconds
 pyres= 193151139.8816967
 2)
@@ -16,3 +15,6 @@ pyres= 193151139.8816967
 True
 ----------------
 END
+
+
+CONCLUSION: Identical values obtained in about x1000 less times for a simple cumsum applied on a for loop
