@@ -143,6 +143,10 @@ proc asNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
   else:
     return initNumpyArray[T](ar)
 
+proc pyValueToNim*[T: SomeNumber](v: PPyObject, o: var NumpyArray[T]) {.inline.} =
+  var vv = PyObject(rawPyObj: v)
+  o = initNumpyArray[T](vv)
+
 proc ndArrayFromPtr*[T](t: ptr T, shape: seq[int]): NumpyArray[T] =
   let np = pyImport("numpy")
   let py_array_type = dtype(T)
@@ -153,6 +157,9 @@ proc ndArrayFromPtr*[T](t: ptr T, shape: seq[int]): NumpyArray[T] =
   # copyMem the data
   var bsizes = result.len*(sizeof(T) div sizeof(uint8))
   copyMem(addr(result.data[0]), t, bsizes)
+
+proc ndArrayFromPtr*[T](t: ptr UncheckedArray[T], shape: seq[int]): NumpyArray[T] =
+  result = ndArrayFromPtr[T](cast[ptr T](t), shape)
 
 proc toUnsafeView*[T](ndArray: NumpyArray[T]): ptr UncheckedArray[T] =
   ndArray.data

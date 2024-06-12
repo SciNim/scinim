@@ -1,0 +1,8 @@
+--b:cpp
+--outdir:bin
+--out:examply.so
+--cc:gcc
+--mm:arc
+--define:openmp
+--define:danger
+--app:lib
