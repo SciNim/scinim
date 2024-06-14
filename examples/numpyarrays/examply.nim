@@ -2,7 +2,7 @@ import nimpy
 import scinim/numpyarrays
 import std/[times, monotimes, math, sequtils]
 
-template timeIt(name:string, body) = 
+template timeIt(name:string, body) =
   let t0 = getMonoTime()
   body
   let sub = getMonoTime() - t0
@@ -12,16 +12,31 @@ template timeIt(name:string, body) =
 proc doStuff[T](el: T) : T {.inline.} =
   result = (1.0-el)/(1.0+el)
 
-proc modArrayInPlace*(x: NumpyArray[float64]) : NumpyArray[float64] {.exportpy.} =
+proc modArray*(x: NumpyArray[float64]) {.exportpy.} =
   # echo "modArrayInPlace.nim"
   # Example of accessing the buffer directly
   var ux = toUnsafeView(x)
   ux[0] = 123
+  ux[1] = -5
+
+proc parallelForOp*(x: NumpyArray[float64]) : NumpyArray[float64] {.exportpy.} = 
   let np = pyImport("numpy")
-  discard np.put(x, 1, -5)
-  # Return the same array = no alloc
-  # This is required to keep the value as 'alive'
-  result = x
+  result = asNumpyArray[float64](np.zeros(x.shape))
+  var us = toUnsafeView(result)
+
+  timeIt("parallelForLoop"):
+    for i in 0||(x.len-1):
+      us[i] = doStuff us[i]
+
+proc normalForOp*(x: NumpyArray[float64]) : NumpyArray[float64] {.exportpy.} = 
+  let np = pyImport("numpy")
+  result = asNumpyArray[float64](np.zeros(x.shape))
+  var us = toUnsafeView(result)
+
+  timeIt("normalForLoop"):
+    for i in 0..(x.len-1):
+      us[i] = doStuff us[i]
+
 
 proc runCalc*(x: NumpyArray[float64]) : tuple[elapsed: float64, value: float64] {.exportpy.} =
   # echo "runCalc.nim on ", x.len, " elts"

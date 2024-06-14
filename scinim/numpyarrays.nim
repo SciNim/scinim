@@ -7,7 +7,7 @@ import threading/smartptrs
 import arraymancer
 
 import nimpy
-import nimpy/[raw_buffers, py_types]
+import nimpy/[raw_buffers, py_types, py_utils]
 
 {.push gcsafe.}
 
@@ -144,6 +144,7 @@ proc asNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
     return initNumpyArray[T](ar)
 
 proc pyValueToNim*[T: SomeNumber](v: PPyObject, o: var NumpyArray[T]) {.inline.} =
+  incRef(v)
   var vv = PyObject(rawPyObj: v)
   o = initNumpyArray[T](vv)
 

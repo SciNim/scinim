@@ -21,26 +21,54 @@ def main():
     print(ar)
 
     print("1)")
-    # Value is consumed when passed to native code so in order re-use 'ar' we have to pass it by copy
-    arCalc = ar.copy()
     start = timer()
-    res = examply.runCalc(arCalc)
+    res = examply.runCalc(ar)
     end = timer()
     print("Python measured native loop took : ", end-start, " seconds")
     print("Nim measured native loop took : ", res[0], " ms")
     print("res=", res[1])
 
-    start = timer()
-    pyres = fLoop(ar)
-    end = timer()
-    print("Python loop took : ", end-start, " seconds")
-    print("pyres=", pyres)
+    timePythonLoop = False
+    # Toggle - CAREFUL it takes a long time since Python is slow
+    if timePythonLoop:
+        start = timer()
+        pyres = fLoop(ar)
+        end = timer()
+        print("Python loop took : ", end-start, " seconds")
+        print("pyres=", pyres)
 
-    print("2)")
-    arr = examply.modArrayInPlace(ar)
-    print(arr)
-    # Note that arr is the same memory segment as ar since Nim code did not allocate
-    print(np.shares_memory(ar, arr))
+    print("2) Showing in-place mod")
+    examply.modArray(ar)
+    print(ar)
+
+    print("3) Comparing for loops")
+
+    start = timer()
+    arr0 = examply.normalForOp(ar)
+    end = timer()
+    print("normalForOp: ", end-start, " seconds")
+
+    start = timer()
+    arr1 = examply.parallelForOp(ar)
+    end = timer()
+    print("parallelForOp: ", end-start, " seconds")
+
+    if timePythonLoop:
+        start = timer()
+        arr2 = np.zeros(ar.shape)
+        for i in range(0, len(ar)):
+            arr2[i] = (1.0-ar[i])/(1.0+ar[i])
+        end = timer()
+        print("Native python for: ", end-start, " seconds")
+
+    # We can check that it returns a copy
+    print(np.shares_memory(ar, arr0))
+    print(np.shares_memory(ar, arr1))
+
+    # Check results are identical
+    eq = np.allclose(arr0, arr1)
+    eq = np.allclose(arr0, arr2)
+    print(eq)
 
     print("----------------")
     print("END")
