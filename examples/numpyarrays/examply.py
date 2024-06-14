@@ -15,7 +15,6 @@ def main():
     MAX_LEN = int(5*1e8)
     ar = np.random.rand(MAX_LEN)
 
-
     print("BEGIN")
     print("----------------")
     print(ar)
@@ -38,8 +37,9 @@ def main():
         print("pyres=", pyres)
 
     print("2) Showing in-place mod")
+    print(ar[0:3])
     examply.modArray(ar)
-    print(ar)
+    print(ar[0:3])
 
     print("3) Comparing for loops")
 
@@ -67,7 +67,8 @@ def main():
 
     # Check results are identical
     eq = np.allclose(arr0, arr1)
-    eq = np.allclose(arr0, arr2)
+    if timePythonLoop:
+        eq = np.allclose(arr0, arr2)
     print(eq)
 
     print("----------------")
