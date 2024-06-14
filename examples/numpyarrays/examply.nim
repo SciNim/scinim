@@ -15,24 +15,47 @@ proc doStuff[T](el: T) : T {.inline.} =
 proc modArray*(x: NumpyArray[float64]) {.exportpy.} =
   # echo "modArrayInPlace.nim"
   # Example of accessing the buffer directly
-  x[0] = 123.0
-  x[1] = -5.0
+  x[0, 0] = 123.0
+  x[0, 1] = -5.0
 
 proc parallelForOp*(x: NumpyArray[float64]) : NumpyArray[float64] {.exportpy.} = 
   let np = pyImport("numpy")
   result = initNumpyArray[float64](x.shape)
+  let 
+    ur = result.toUnsafeView()
+    ux = x.toUnsafeView()
 
-  timeIt("parallelForLoop"):
-    for i in 0||(x.len-1):
-      result[i] = doStuff x[i]
+  for i in 0||(x.len-1):
+    ur[i] = doStuff ux[i] 
+
+proc parallelIndexedForOp*(x: NumpyArray[float64]) : NumpyArray[float64] {.exportpy.} = 
+  let np = pyImport("numpy")
+  result = initNumpyArray[float64](x.shape)
+  let 
+    ur = result.toUnsafeView()
+    ux = x.toUnsafeView()
+
+  for i in 0||(x.shape[0]-1):
+    for j in 0||(x.shape[1]-1):
+      result[i, j] = doStuff x[i, j]
 
 proc normalForOp*(x: NumpyArray[float64]) : NumpyArray[float64] {.exportpy.} = 
   let np = pyImport("numpy")
   result = initNumpyArray[float64](x.shape)
+  let 
+    ur = result.toUnsafeView()
+    ux = x.toUnsafeView()
 
-  timeIt("normalForLoop"):
-    for i in 0..(x.len-1):
-      result[i] = doStuff x[i]
+  for i in 0..(x.len-1):
+    ur[i] = doStuff ux[i]
+
+proc indexedOp*(x: NumpyArray[float64]) : NumpyArray[float64] {.exportpy.} = 
+  let np = pyImport("numpy")
+  result = initNumpyArray[float64](x.shape)
+
+  for i in 0..<(x.shape[0]):
+    for j in 0..<(x.shape[1]):
+      result[i, j] = doStuff x[i, j]
 
 proc runCalc*(x: NumpyArray[float64]) : tuple[elapsed: float64, value: float64] {.exportpy.} =
   var ux = toUnsafeView(x)

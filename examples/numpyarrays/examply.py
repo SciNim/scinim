@@ -4,16 +4,21 @@ from timeit import default_timer as timer
 
 def fLoop(ar):
     s = 0.0
-    for i in range(0, len(ar)):
-        el = ar[i]
-        s = s + (1-el)/(1+el)
+    X = ar.shape[0]
+    Y = ar.shape[1]
+    for i in range(0, range(X)):
+        for j in range(0, range(Y)):
+            el = ar[i, j]
+            s = s + (1-el)/(1+el)
     print("res=", s)
     return s
 
 def main():
     print("Python => main()")
-    MAX_LEN = int(5*1e8)
-    ar = np.random.rand(MAX_LEN)
+    MAX_X = int(3*1e4)
+    MAX_Y = int(2*1e4)
+    MAX_LEN = int(MAX_X*MAX_Y)
+    ar = np.random.rand(MAX_X, MAX_Y)
 
     print("BEGIN")
     print("----------------")
@@ -37,9 +42,9 @@ def main():
         print("pyres=", pyres)
 
     print("2) Showing in-place mod")
-    print(ar[0:3])
+    print(ar[0, 0:3])
     examply.modArray(ar)
-    print(ar[0:3])
+    print(ar[0, 0:3])
 
     print("3) Comparing for loops")
 
@@ -49,15 +54,30 @@ def main():
     print("normalForOp: ", end-start, " seconds")
 
     start = timer()
+    arr01 = examply.indexedOp(ar)
+    end = timer()
+    print("indexedOp: ", end-start, " seconds")
+
+    start = timer()
     arr1 = examply.parallelForOp(ar)
     end = timer()
     print("parallelForOp: ", end-start, " seconds")
 
+    start = timer()
+    arr11 = examply.parallelIndexedForOp(ar)
+    end = timer()
+    print("parallelIndexedForOp: ", end-start, " seconds")
+
+
+
     if timePythonLoop:
         start = timer()
         arr2 = np.zeros(ar.shape)
-        for i in range(0, len(ar)):
-            arr2[i] = (1.0-ar[i])/(1.0+ar[i])
+        X = ar.shape[0]
+        Y = ar.shape[1]
+        for i in range(0, range(X)):
+            for j in range(0, range(Y)):
+                arr2[i, j] = (1.0-ar[i, j])/(1.0+ar[i, j])
         end = timer()
         print("Native python for: ", end-start, " seconds")
 

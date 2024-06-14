@@ -236,7 +236,6 @@ func checkContiguousIndex[T](ndArray: NumpyArray[T], idx: int) =
                     " while tensor size is" &
                     $(ndArray.size))
 
-
 proc getIndex*[T](ndArray: NumpyArray[T], idx: varargs[int]): int =
   when compileOption("boundChecks"):
     ndArray.checkIndex(idx)
@@ -258,30 +257,29 @@ proc getContiguousIndex*[T](ndArray: NumpyArray[T], idx: int): int =
       let coord = (idx div z) mod ndArray.shape[i]
       result += coord*ndArray.strides[i]
       z *= ndArray.shape[i]
-  debugEcho result
 
-func atContiguousIndex*[T](ndArray: NumpyArray[T], idx: int): T =
-  toUnsafeView(ndArray)[idx]
+proc atContiguousIndex*[T](ndArray: NumpyArray[T], idx: int): var T =
+  toUnsafeView(ndArray)[ndArray.getContiguousIndex(idx)]
 
-func atIndex*[T](ndArray: NumpyArray[T], idx: varargs[int]): T =
+proc atIndex*[T](ndArray: NumpyArray[T], idx: varargs[int]): T =
   toUnsafeView(ndArray)[getIndex(ndArray, idx)]
-
 
 template `[]`*[T](ndArray: NumpyArray[T], idx: varargs[int]): T =
   atIndex(ndArray, idx)
 
-func atIndexMut*[T](ndArray: NumpyArray[T], idx: varargs[int], val: T) =
+proc atIndexMut*[T](ndArray: NumpyArray[T], idx: varargs[int], val: T) =
   toUnsafeView(ndArray)[getIndex(ndArray, idx)] = val
 
 template `[]=`*[T](ndArray: NumpyArray[T], idx: varargs[int], val: T) =
   atIndexMut(ndArray, idx, val)
 
 # Is this worth it ?
-# template `[[]]`*[T](ndArray: NumpyArray[T], idx: int): T =
-#   toUnsafeView(ndArray)[idx]
+template `[[]]`*[T](ndArray: NumpyArray[T], idx: int): T =
+  atContiguousIndex(ndArray, idx)
 
-# template `[[]]=`*[T](ndArray: NumpyArray[T], idx: int, val: T)=
-#   toUnsafeView(ndArray)[idx] = val
+template `[[]]=`*[T](ndArray: NumpyArray[T], idx: int, val: T) =
+  atContiguousIndex(ndArray, idx) = val
+
 
 {.pop.}
 {.pop.}
