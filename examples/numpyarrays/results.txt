@@ -1,0 +1,23 @@
+Python => main()
+BEGIN
+----------------
+[0.89022842 0.13538447 0.86506193 ... 0.46085669 0.05226664 0.13891835]
+1)
+Python measured native loop took :  0.5597997090080753  seconds
+Nim measured native loop took :  559.778  ms
+res= 193149345.99046433
+res= 193149345.99046433
+Python loop took :  88.44803783297539  seconds
+pyres= 193149345.99046433
+2) Showing in-place mod
+[ 1.23000000e+02 -5.00000000e+00  8.65061926e-01 ...  4.60856686e-01
+  5.22666434e-02  1.38918348e-01]
+3) Comparing for loops
+normalForOp:  0.4290057919570245  seconds
+parallelForOp:  0.11368379095802084  seconds
+Native python for:  108.40124666696647  seconds
+False
+False
+False
+----------------
+END
