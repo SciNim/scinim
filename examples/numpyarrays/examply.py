@@ -4,10 +4,16 @@ from timeit import default_timer as timer
 
 def fLoop(ar):
     s = 0.0
-    X = ar.shape[0]
-    Y = ar.shape[1]
-    for i in range(0, range(X)):
-        for j in range(0, range(Y)):
+    iX = int(ar.shape[0])
+    iY = int(ar.shape[1])
+
+    print("------------------------")
+    print(iX)
+    print(iY)
+    print("------------------------")
+
+    for i in range(0, iX):
+        for j in range(0, iY):
             el = ar[i, j]
             s = s + (1-el)/(1+el)
     print("res=", s)
@@ -25,14 +31,7 @@ def main():
     print(ar)
 
     print("1)")
-    start = timer()
-    res = examply.runCalc(ar)
-    end = timer()
-    print("Python measured native loop took : ", end-start, " seconds")
-    print("Nim measured native loop took : ", res[0], " ms")
-    print("res=", res[1])
-
-    timePythonLoop = False
+    timePythonLoop = False  
     # Toggle - CAREFUL it takes a long time since Python is slow
     if timePythonLoop:
         start = timer()
@@ -40,6 +39,13 @@ def main():
         end = timer()
         print("Python loop took : ", end-start, " seconds")
         print("pyres=", pyres)
+
+    start = timer()
+    res = examply.runCalc(ar)
+    end = timer()
+    print("Python measured native loop took : ", end-start, " seconds")
+    print("Nim measured native loop took : ", res[0], " ms")
+    print("res=", res[1])
 
     print("2) Showing in-place mod")
     print(ar[0, 0:3])
@@ -68,15 +74,13 @@ def main():
     end = timer()
     print("parallelIndexedForOp: ", end-start, " seconds")
 
-
-
     if timePythonLoop:
         start = timer()
         arr2 = np.zeros(ar.shape)
-        X = ar.shape[0]
-        Y = ar.shape[1]
-        for i in range(0, range(X)):
-            for j in range(0, range(Y)):
+        X = int(ar.shape[0])
+        Y = int(ar.shape[1])
+        for i in range(0, X):
+            for j in range(0, Y):
                 arr2[i, j] = (1.0-ar[i, j])/(1.0+ar[i, j])
         end = timer()
         print("Native python for: ", end-start, " seconds")
