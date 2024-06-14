@@ -31,9 +31,6 @@ proc parallelForOp*(x: NumpyArray[float64]) : NumpyArray[float64] {.exportpy.} =
 proc parallelIndexedForOp*(x: NumpyArray[float64]) : NumpyArray[float64] {.exportpy.} = 
   let np = pyImport("numpy")
   result = initNumpyArray[float64](x.shape)
-  let 
-    ur = result.toUnsafeView()
-    ux = x.toUnsafeView()
 
   for i in 0||(x.shape[0]-1):
     for j in 0||(x.shape[1]-1):
