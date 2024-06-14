@@ -7,11 +7,6 @@ def fLoop(ar):
     iX = int(ar.shape[0])
     iY = int(ar.shape[1])
 
-    print("------------------------")
-    print(iX)
-    print(iY)
-    print("------------------------")
-
     for i in range(0, iX):
         for j in range(0, iY):
             el = ar[i, j]
