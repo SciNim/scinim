@@ -32,7 +32,7 @@ proc normalForOp*(x: NumpyArray[float64]) : NumpyArray[float64] {.exportpy.} =
 
   timeIt("normalForLoop"):
     for i in 0..(x.len-1):
-      result[[i]] = doStuff x[[i]]
+      result[i] = doStuff x[i]
 
 proc runCalc*(x: NumpyArray[float64]) : tuple[elapsed: float64, value: float64] {.exportpy.} =
   var ux = toUnsafeView(x)
