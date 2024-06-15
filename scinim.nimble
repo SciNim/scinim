@@ -10,6 +10,6 @@ backend       = "cpp"
 # Dependencies
 requires "nim >= 1.6.0"
 requires "threading"
-requires "arraymancer >= 0.7.3"
+requires "arraymancer >= 0.7.31"
 requires "polynumeric >= 0.2.0"
 requires "nimpy >= 0.2.0"
