@@ -8,7 +8,7 @@ license       = "MIT"
 backend       = "cpp"
 
 # Dependencies
-requires "nim >= 1.4.0"
+requires "nim >= 1.6.0"
 requires "threading"
 requires "arraymancer >= 0.7.3"
 requires "polynumeric >= 0.2.0"
