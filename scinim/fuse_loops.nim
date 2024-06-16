@@ -183,7 +183,24 @@ proc fuseLoopImpl(ompStr: string, body: NimNode): NimNode =
     echo result.repr
 
 macro fuseLoops*(body: untyped): untyped =
+  ## Fuses all loops inside the body of the macro, unless they are annotated with
+  ## `nofuse`.
   result = fuseLoopImpl("", body)
 
 macro fuseLoops*(ompStr: untyped{lit}, body: untyped): untyped =
+  ## Fuses all loops inside the body of the macro, unless they are annotated with
+  ## `nofuse`.
+  ##
+  ## This version supports handing a string to be passed to OpenMP, i.e.
+  ## `fuseLoops("parallelFor"): body`
+  ##
+  ## Note: To utilize OpenMP, you may have to compile with
+  ## `--passC:"-fopenmp" --passL:"-lgomp"`
+  ## (at least for GCC. For Clang the commands differ slightly I believe).
+  ##
+  ## There is also a chance you either have to compile with
+  ## `--exceptions:quirky`
+  ## or using the C++ backend, due to the C backend producing `goto` statements
+  ## inside the loops, which lead to C compiler errors when combined with
+  ## OpenMP.
   result = fuseLoopImpl(ompStr.strVal, body)
