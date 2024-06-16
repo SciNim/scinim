@@ -126,10 +126,10 @@ proc pyprint*[T](ar: NumpyArray[T]) =
 proc toUnsafeView*[T](ndArray: NumpyArray[T]): ptr UncheckedArray[T] {.noSideEffect, inline.} =
   ndArray.data
 
-proc c_contiguous*[T](ar: NumpyArray[T]) : bool =
+proc check_c_contiguous*[T](ar: NumpyArray[T]) : bool =
   ar.data.c_contiguous.to(bool)
 
-proc f_contiguous*[T](ar: NumpyArray[T]) : bool =
+proc check_f_contiguous*[T](ar: NumpyArray[T]) : bool =
   ar.data.f_contiguous.to(bool)
 
 proc initNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
@@ -152,7 +152,7 @@ proc pyValueToNim*[T: SomeNumber](v: PPyObject, o: var NumpyArray[T]) {.inline.}
   o = initNumpyArray[T](vv)
 
 proc isContiguous*[T](ar: NumpyArray[T]) : bool =
-  result = ar.c_contiguous or ar.f_contiguous
+  result = ar.check_c_contiguous() or ar.check_f_contiguous()
 
 proc asContiguous*[T](ar: NumpyArray[T]) : NumpyArray[T] =
   let np = pyImport("numpy")
@@ -167,9 +167,9 @@ proc asNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
   ## User has to make sure that the data type of the array can be
   ## cast to `T` without loss of information!
   assertNumpyType[T](ar)
-  if not ar.c_contiguous.to(bool):
+  if not ar.data.c_contiguous.to(bool):
     let np = pyImport("numpy")
-    var ar = asContiguous(ar)
+    var ar = np.ascontiguousarray(ar)
     return initNumpyArray[T](ar)
   else:
     return initNumpyArray[T](ar)
@@ -292,7 +292,6 @@ template `{}`*[T](ndArray: NumpyArray[T], idx: int): T =
 
 template `{}=`*[T](ndArray: NumpyArray[T], idx: int, val: T) =
   atContiguousIndex(ndArray, idx) = val
-
 
 {.pop.}
 {.pop.}
