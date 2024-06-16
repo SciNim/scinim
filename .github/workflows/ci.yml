@@ -47,12 +47,24 @@ jobs:
           update: true
           install: base-devel git mingw-w64-x86_64-toolchain
 
+      - name: Install dependencies (Ubuntu)
+        if: ${{matrix.target == 'linux'}}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python-numpy python3-numpy
+
+      - name: Install dependencies (OSX)
+        if: ${{matrix.target == 'macos'}}
+        run: |
+          brew install numpy
+
       - name: Install dependencies (Windows)
         if: ${{matrix.target == 'windows'}}
         shell: msys2 {0}
         run: |
           pacman -Syu --noconfirm
           pacman -S --needed --noconfirm mingw-w64-x86_64-lapack
+          pacman -S --needed --noconfirm mingw-w64-x86_64-python-numpy
 
       - name: Setup nimble & deps
         shell: bash
