@@ -1,28 +1,11 @@
-import math
-proc Σ*[T](s: openArray[T]): T = s.sum
-proc Π*[T](s: openArray[T]): T = s.prod
+import std / [macros, math]
+export math
 
-proc √*[T](x: T): T = sqrt(x)
-proc √*[T](x: openArray[T]): T = sqrt(x)
+## This module contains a whole bunch of fun little sugar procs / templates / macros
+## to (mostly) help with writing math code. The most likely use case might be for
+## illustrative / explanatory code that is close to math in nature already.
 
-let s = @[1,2,3]
-echo Σ s
-echo Π s
 
-template Σ_i*(frm, to: int, body: untyped): untyped =
-  var res: int
-  for i {.inject.} in frm ..< to:
-    res += body
-  res
-
-#template Σ_i(to: int, body: untyped): untyped =
-#  #var res: typeof(s[0])
-#  var res: int
-#  for i {.inject.} in 0 ..< to:
-#    res += body
-#  res
-
-import macros
 proc getTypeReplaceI(arg: NimNode): NimNode =
   if arg.len > 0:
     result = newTree(arg.kind)
@@ -35,6 +18,17 @@ proc getTypeReplaceI(arg: NimNode): NimNode =
       else: return arg
     else: return arg
 
+proc Σ*[T](s: openArray[T]): T = s.sum
+proc Π*[T](s: openArray[T]): T = s.prod
+
+proc √*[T](x: T): T = sqrt(x)
+proc √*[T](x: openArray[T]): T = sqrt(x)
+
+template Σ_i*(frm, to: int, body: untyped): untyped =
+  var res: int
+  for i {.inject.} in frm ..< to:
+    res += body
+  res
 
 macro Σ_i*(col, body: untyped): untyped =
   let typ = getTypeReplaceI(body)
@@ -44,27 +38,17 @@ macro Σ_i*(col, body: untyped): untyped =
     for `iId` in 0 ..< `col`.len:
       res += `body`
     res
-  echo result.repr
-
-type
-  Foo = object
-    x: int
-let f = @[Foo(x: 1), Foo(x: 4)]
-
-echo Σ_i(0, f.len, f[i].x)
-let r = Σ_i(f): f[i].x
-echo r
 
 macro λ*(arg, body: untyped): untyped =
+  ##
+  # XXX: Support multiple arguments!
+  if arg.kind != nnkInfix or
+     (arg.kind == nnkInfix and arg[0].kind in {nnkIdent, nnkSym} and arg[0].strVal != "->"):
+    error("Unsupported operation in `λ`. The infix must be `->`, but is: " & arg[0].repr)
   let a = arg[1]
   let typ = arg[2]
-  echo body.repr
   result = quote do:
-    let fn = proc(`a`: `typ`): auto = `body`
-    fn
-
-let fn = λ(x -> int): x*x
-echo fn(2)
+    proc(`a`: `typ`): auto = `body`
 
 proc sliceTypes(n: NimNode, sl: Slice[int]): tuple[args, genTyps: NimNode] =
   var args = nnkFormalParams.newTree(ident"auto")
@@ -86,23 +70,12 @@ proc generateFunc(arg: NimNode): NimNode =
   let rhs = arg[1]
   let fnName = lhs[0]
   let (fnArgs, genTyps) = sliceTypes(lhs, 1 ..< lhs.len)
-  echo fnArgs.treerepr
   result = newProc(name = fnName, body = rhs)
   result[2] = genTyps
   result[3] = fnArgs
-  echo result.repr
 
 macro mathScope*(args: untyped): untyped =
-  echo args.treerepr
   expectKind(args, nnkStmtList)
   result = newStmtList()
   for arg in args:
     result.add generateFunc(arg)
-  echo result.repr
-
-mathScope:
-  g(x) = exp(-x)
-  h(x, μ, σ) = 1.0/sqrt(2*Pi) * exp(-pow(x - μ, 2) / (2 * σ*σ))
-
-echo g(1.5)
-echo h(1.0, 0.5, 1.1)
