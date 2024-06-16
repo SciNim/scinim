@@ -1,0 +1,103 @@
+name: scinim CI
+on:
+  push:
+    paths:
+      - 'tests/**'
+      - '**'
+      - 'scinim.nimble'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    paths:
+      - 'tests/**'
+      - '**'
+      - 'scinim.nimble'
+      - '.github/workflows/ci.yml'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        nim:
+          - '1.6.x'
+          - '2.0.x'
+          - 'stable'
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macOS-latest
+    name: '${{ matrix.nim }} (${{ matrix.os }})'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: scinim
+
+      - name: Setup nim
+        uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: ${{ matrix.nim }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup MSYS2 (Windows)
+        if: ${{matrix.target == 'windows'}}
+        uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
+          update: true
+          install: base-devel git mingw-w64-x86_64-toolchain
+
+      - name: Install dependencies (Windows)
+        if: ${{matrix.target == 'windows'}}
+        shell: msys2 {0}
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --needed --noconfirm mingw-w64-x86_64-lapack
+
+      - name: Setup nimble & deps
+        shell: bash
+        run: |
+          cd scinim
+          nimble refresh -y
+          nimble install -y
+
+      - name: Run tests (Linux & OSX)
+        if: ${{matrix.target != 'windows'}}
+        shell: bash
+        run: |
+          cd scinim
+          nimble -y test
+
+      - name: Run tests (Windows)
+        if: ${{matrix.target == 'windows'}}
+        shell: msys2 {0}
+        run: |
+          cd scinim
+          nimble -y test
+
+      - name: Build docs
+        if: >
+          github.event_name == 'push' && github.ref == 'refs/heads/master' &&
+          matrix.target == 'linux' && matrix.branch == 'devel'
+        shell: bash
+        run: |
+          cd scinim
+          branch=${{ github.ref }}
+          branch=${branch##*/}
+          nimble doc --project --outdir:docs \
+            '--git.url:https://github.com/${{ github.repository }}' \
+            '--git.commit:${{ github.sha }}' \
+            "--git.devel:$branch" \
+            scinim.nim
+          # Ignore failures for older Nim
+          cp docs/{the,}index.html || true
+
+      - name: Publish docs
+        if: >
+          github.event_name == 'push' && github.ref == 'refs/heads/master' &&
+          matrix.target == 'linux' && matrix.branch == 'devel'
+        uses: crazy-max/ghaction-github-pages@v1
+        with:
+          build_dir: scinim/docs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
