@@ -8,8 +8,14 @@ license       = "MIT"
 backend       = "cpp"
 
 # Dependencies
-requires "nim >= 1.4.0"
+requires "nim >= 1.6.0"
 requires "threading"
-requires "arraymancer >= 0.7.3"
+requires "arraymancer >= 0.7.32"
 requires "polynumeric >= 0.2.0"
 requires "nimpy >= 0.2.0"
+
+task test, "Run all tests":
+  exec "nim c -r tests/tnumpyarrays.nim"
+  exec "nim c -r --gc:orc tests/tnumpyarrays.nim"
+  exec "nim cpp -r tests/tnumpyarrays.nim"
+  exec "nim cpp -r --gc:orc tests/tnumpyarrays.nim"
