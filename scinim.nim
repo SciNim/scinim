@@ -1,4 +1,4 @@
-import ./scinim/signals/signals
+import ./scinim/signals
 export signals
 
 import ./scinim/numpyarrays
