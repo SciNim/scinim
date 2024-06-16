@@ -32,8 +32,8 @@ proc parallelIndexedForOp*(x: NumpyArray[float64]) : NumpyArray[float64] {.expor
   result = initNumpyArray[float64](x.shape)
 
   fuseLoops("parallel for"):
-    for i in 0..(x.shape[0]-1):
-      for j in 0..(x.shape[1]-1):
+    for i in 0..<x.shape[0]:
+      for j in 0..<x.shape[1]:
         result[i, j] = doStuff x[i, j]
 
 proc normalForOp*(x: NumpyArray[float64]) : NumpyArray[float64] {.exportpy.} =

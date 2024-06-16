@@ -288,10 +288,10 @@ template `[]=`*[T](ndArray: NumpyArray[T], idx: varargs[int], val: T) =
 
 # Is this worth it ?
 template `{}`*[T](ndArray: NumpyArray[T], idx: int): T =
-  atContiguousIndex(ndArray, idx)
+  toUnsafeView(ndArray)[idx]
 
 template `{}=`*[T](ndArray: NumpyArray[T], idx: int, val: T) =
-  atContiguousIndex(ndArray, idx) = val
+  toUnsafeView(ndArray)[idx] = val
 
 {.pop.}
 {.pop.}
