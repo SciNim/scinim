@@ -1,6 +1,7 @@
 import examply
 import numpy as np
 from timeit import default_timer as timer
+import multiprocessing
 
 def fLoop(ar):
     s = 0.0
@@ -17,8 +18,12 @@ def fLoop(ar):
 def main():
     print("Python => main()")
     MAX_X = int(3*1e3)
-    MAX_Y = int(2*1e4)
+    MAX_Y = int(3*1e3)
     MAX_LEN = int(MAX_X*MAX_Y)
+    print("CPU COUNT=",  multiprocessing.cpu_count())
+    print("MAX_X=", MAX_X)
+    print("MAX_Y=", MAX_Y)
+    print("MAX_LEN=", MAX_LEN)
     ar = np.random.rand(MAX_X, MAX_Y)
 
     print("BEGIN")
