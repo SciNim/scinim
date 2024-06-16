@@ -16,7 +16,7 @@ def fLoop(ar):
 
 def main():
     print("Python => main()")
-    MAX_X = int(3*1e4)
+    MAX_X = int(3*1e3)
     MAX_Y = int(2*1e4)
     MAX_LEN = int(MAX_X*MAX_Y)
     ar = np.random.rand(MAX_X, MAX_Y)
@@ -26,7 +26,7 @@ def main():
     print(ar)
 
     print("1)")
-    timePythonLoop = False  
+    timePythonLoop = False
     # Toggle - CAREFUL it takes a long time since Python is slow
     if timePythonLoop:
         start = timer()

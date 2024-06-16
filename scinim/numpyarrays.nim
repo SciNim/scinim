@@ -109,7 +109,7 @@ proc raw(x: var SharedPtr[PyBuffer]): var RawPyBuffer =
 proc obj*[T](x: NumpyArray[T]): PyObject =
   pyValueToNim(x.pyBuf.raw.obj, result)
 
-proc ndim*[T](ar: NumpyArray[T]) : cint {.noSideEffect, inline.} = 
+proc ndim*[T](ar: NumpyArray[T]) : cint {.noSideEffect, inline.} =
   ar.pyBuf.raw.ndim
 
 proc dtype*[T](ar: NumpyArray[T]): PyObject =
@@ -126,13 +126,15 @@ proc pyprint*[T](ar: NumpyArray[T]) =
 proc toUnsafeView*[T](ndArray: NumpyArray[T]): ptr UncheckedArray[T] {.noSideEffect, inline.} =
   ndArray.data
 
-proc numpyArrayToTensorView[T](ndArray: NumpyArray[T]): Tensor[T] {.noSideEffect, inline.}=
-  var buf = cast[ptr T](toUnsafeView(ndArray))
-  result = fromBuffer[T](buf, ndArray.shape)
+proc c_contiguous*[T](ar: NumpyArray[T]) : bool =
+  ar.data.c_contiguous.to(bool)
+
+proc f_contiguous*[T](ar: NumpyArray[T]) : bool =
+  ar.data.f_contiguous.to(bool)
 
 proc initNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
   result.pyBuf = newSharedPtr(PyBuffer())
-  let 
+  let
     f = sizeof(T) div sizeof(byte)
 
   result.strides = nimpy.getAttr(ar, "strides".cstring).to(seq[int]).map(x => (x div f))
@@ -144,22 +146,33 @@ proc initNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
   result.len = result.shape.foldl(a * b, 1)
   result.data = cast[ptr UncheckedArray[T]](result.pyBuf.raw.buf)
 
+proc pyValueToNim*[T: SomeNumber](v: PPyObject, o: var NumpyArray[T]) {.inline.} =
+  incRef(v)
+  var vv = PyObject(rawPyObj: v)
+  o = initNumpyArray[T](vv)
+
+proc isContiguous*[T](ar: NumpyArray[T]) : bool =
+  result = ar.c_contiguous or ar.f_contiguous
+
+proc asContiguous*[T](ar: NumpyArray[T]) : NumpyArray[T] =
+  let np = pyImport("numpy")
+  result = pyValueToNim[T](np.ascontiguousarray(ar))
+
+proc numpyArrayToTensorView*[T](ndArray: NumpyArray[T]): Tensor[T] {.noSideEffect, inline.}=
+  var buf = cast[ptr T](toUnsafeView(ndArray))
+  result = fromBuffer[T](buf, ndArray.shape)
+
 proc asNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
   ## some PyObject that points to a numpy array
   ## User has to make sure that the data type of the array can be
   ## cast to `T` without loss of information!
   assertNumpyType[T](ar)
-  if not ar.data.c_contiguous.to(bool):
+  if not ar.c_contiguous.to(bool):
     let np = pyImport("numpy")
-    var ar = np.ascontiguousarray(ar)
+    var ar = asContiguous(ar)
     return initNumpyArray[T](ar)
   else:
     return initNumpyArray[T](ar)
-
-proc pyValueToNim*[T: SomeNumber](v: PPyObject, o: var NumpyArray[T]) {.inline.} =
-  incRef(v)
-  var vv = PyObject(rawPyObj: v)
-  o = initNumpyArray[T](vv)
 
 proc ndArrayFromPtr*[T](t: ptr T, shape: seq[int]): NumpyArray[T] =
   let np = pyImport("numpy")
@@ -210,7 +223,7 @@ proc initNumpyArray*[T](shape: seq[int]) : NumpyArray[T] =
     nimpy.callMethod(np, "zeros", shape, py_array_type)
   )
 
-# Indexing 
+# Indexing
 {.push noSideEffect, inline.}
 
 func checkIndex[T](ndArray: NumpyArray[T], idx: varargs[int]) =
@@ -240,7 +253,7 @@ proc getIndex*[T](ndArray: NumpyArray[T], idx: varargs[int]): int =
   when compileOption("boundChecks"):
     ndArray.checkIndex(idx)
 
-  result = 0 
+  result = 0
   # result =  ndArray.offset # N/A we assume offset is 0.0
   for i in 0..<idx.len:
     result += ndArray.strides[i]*idx[i]
@@ -274,10 +287,10 @@ template `[]=`*[T](ndArray: NumpyArray[T], idx: varargs[int], val: T) =
   atIndexMut(ndArray, idx, val)
 
 # Is this worth it ?
-template `[[]]`*[T](ndArray: NumpyArray[T], idx: int): T =
+template `{}`*[T](ndArray: NumpyArray[T], idx: int): T =
   atContiguousIndex(ndArray, idx)
 
-template `[[]]=`*[T](ndArray: NumpyArray[T], idx: int, val: T) =
+template `{}=`*[T](ndArray: NumpyArray[T], idx: int, val: T) =
   atContiguousIndex(ndArray, idx) = val
 
 
