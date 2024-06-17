@@ -1,0 +1,8 @@
+--b:cpp
+--cc:gcc
+--outdir:bin
+--out:examply.so
+--define:openmp
+--define:danger
+--app:lib
+--define:useMalloc
