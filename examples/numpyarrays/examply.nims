@@ -5,3 +5,4 @@
 --define:openmp
 --define:danger
 --app:lib
+--define:useMalloc

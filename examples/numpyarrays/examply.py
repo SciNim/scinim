@@ -18,7 +18,7 @@ def fLoop(ar):
 def main():
     print("Python => main()")
     MAX_X = int(3*1e3)
-    MAX_Y = int(3*1e3)
+    MAX_Y = int(4*1e4)
     MAX_LEN = int(MAX_X*MAX_Y)
     print("CPU COUNT=",  multiprocessing.cpu_count())
     print("MAX_X=", MAX_X)
@@ -31,7 +31,7 @@ def main():
     print(ar)
 
     print("1)")
-    timePythonLoop = False
+    timePythonLoop = True
     # Toggle - CAREFUL it takes a long time since Python is slow
     if timePythonLoop:
         start = timer()
