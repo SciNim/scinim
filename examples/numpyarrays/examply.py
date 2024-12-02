@@ -3,6 +3,7 @@ import numpy as np
 from timeit import default_timer as timer
 import multiprocessing
 
+
 def fLoop(ar):
     s = 0.0
     iX = int(ar.shape[0])
@@ -11,16 +12,17 @@ def fLoop(ar):
     for i in range(0, iX):
         for j in range(0, iY):
             el = ar[i, j]
-            s = s + (1-el)/(1+el)
+            s = s + (1 - el) / (1 + el)
     print("res=", s)
     return s
 
+
 def main():
     print("Python => main()")
-    MAX_X = int(3*1e3)
-    MAX_Y = int(4*1e4)
-    MAX_LEN = int(MAX_X*MAX_Y)
-    print("CPU COUNT=",  multiprocessing.cpu_count())
+    MAX_X = int(3 * 1e3)
+    MAX_Y = int(4 * 1e2)
+    MAX_LEN = int(MAX_X * MAX_Y)
+    print("CPU COUNT=", multiprocessing.cpu_count())
     print("MAX_X=", MAX_X)
     print("MAX_Y=", MAX_Y)
     print("MAX_LEN=", MAX_LEN)
@@ -31,19 +33,19 @@ def main():
     print(ar)
 
     print("1)")
-    timePythonLoop = True
+    timePythonLoop = False
     # Toggle - CAREFUL it takes a long time since Python is slow
     if timePythonLoop:
         start = timer()
         pyres = fLoop(ar)
         end = timer()
-        print("Python loop took : ", end-start, " seconds")
+        print("Python loop took : ", end - start, " seconds")
         print("pyres=", pyres)
 
     start = timer()
     res = examply.runCalc(ar)
     end = timer()
-    print("Python measured native loop took : ", end-start, " seconds")
+    print("Python measured native loop took : ", end - start, " seconds")
     print("Nim measured native loop took : ", res[0], " ms")
     print("res=", res[1])
 
@@ -57,22 +59,22 @@ def main():
     start = timer()
     arr0 = examply.normalForOp(ar)
     end = timer()
-    print("normalForOp: ", end-start, " seconds")
+    print("normalForOp: ", end - start, " seconds")
 
     start = timer()
     arr01 = examply.indexedOp(ar)
     end = timer()
-    print("indexedOp: ", end-start, " seconds")
+    print("indexedOp: ", end - start, " seconds")
 
     start = timer()
     arr1 = examply.parallelForOp(ar)
     end = timer()
-    print("parallelForOp: ", end-start, " seconds")
+    print("parallelForOp: ", end - start, " seconds")
 
     start = timer()
     arr11 = examply.parallelIndexedForOp(ar)
     end = timer()
-    print("parallelIndexedForOp: ", end-start, " seconds")
+    print("parallelIndexedForOp: ", end - start, " seconds")
 
     if timePythonLoop:
         start = timer()
@@ -81,9 +83,9 @@ def main():
         Y = int(ar.shape[1])
         for i in range(0, X):
             for j in range(0, Y):
-                arr2[i, j] = (1.0-ar[i, j])/(1.0+ar[i, j])
+                arr2[i, j] = (1.0 - ar[i, j]) / (1.0 + ar[i, j])
         end = timer()
-        print("Native python for: ", end-start, " seconds")
+        print("Native python for: ", end - start, " seconds")
 
     # We can check that it returns a copy
     print(np.shares_memory(ar, arr0))
@@ -97,6 +99,7 @@ def main():
 
     print("----------------")
     print("END")
+
 
 main()
 ## In bash, simply run :

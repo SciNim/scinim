@@ -15,7 +15,6 @@ requires "polynumeric >= 0.2.0"
 requires "nimpy >= 0.2.0"
 
 task test, "Run all tests":
-  exec "nim c -r tests/tnumpyarrays.nim"
-  exec "nim c -r --gc:orc tests/tnumpyarrays.nim"
-  exec "nim cpp -r tests/tnumpyarrays.nim"
-  exec "nim cpp -r --gc:orc tests/tnumpyarrays.nim"
+  echo "Running tests command"
+  exec "nim cpp -r --mm:arc tests/tnumpyarrays.nim"
+  exec "nim cpp -r --mm:orc tests/tnumpyarrays.nim"

@@ -134,9 +134,7 @@ proc check_f_contiguous*[T](ar: NumpyArray[T]) : bool =
 
 proc initNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
   result.pyBuf = newSharedPtr(PyBuffer())
-  let
-    f = sizeof(T) div sizeof(byte)
-  # result.strides = nimpy.getAttr(ar, "strides".cstring).to(seq[int]).map(x => (x div f))
+  let f = sizeof(T) div sizeof(byte)
   result.strides = ar.data.strides.to(seq[int]).map(x => (x div f))
   ar.getBuffer(result.pyBuf.raw, PyBUF_WRITABLE or PyBUF_ND)
   let shapear = cast[ptr UncheckedArray[Py_ssize_t]](result.pyBuf.raw.shape)
