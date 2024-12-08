@@ -76,7 +76,6 @@ proc test(arg: tuple[s: string]) =
 when isMainModule:
   test((s: "toTensor, toNdArray in main thread"))
   # Disable for now
-  var thr: Thread[tuple[s: string]]
-  createThread(thr, test, (s: "toTensor, toNdArray in external thread"))
-  joinThread(thr)
-
+  # var thr: Thread[tuple[s: string]]
+  # createThread(thr, test, (s: "toTensor, toNdArray in external thread"))
+  # joinThread(thr)
