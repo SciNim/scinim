@@ -52,7 +52,7 @@ jobs:
         if: ${{matrix.os == 'ubuntu-latest'}}
         run: |
           sudo apt-get update
-          sudo apt-get install -y python-numpy python3-numpy
+          sudo apt-get install -y python3-numpy
 
       - name: Install dependencies (OSX)
         if: ${{matrix.os == 'macOS-latest'}}
