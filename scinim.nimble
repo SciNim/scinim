@@ -17,5 +17,5 @@ requires "print"
 
 task test, "Run all tests":
   echo "Running tests command"
-  exec "nim cpp -r --mm:Atomicarc tests/tnumpyarrays.nim"
+  exec "nim cpp -r --mm:arc tests/tnumpyarrays.nim"
   exec "nim cpp -r --mm:orc tests/tnumpyarrays.nim"
