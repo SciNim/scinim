@@ -19,8 +19,8 @@ jobs:
     strategy:
       matrix:
         nim:
-          - '1.6.x'
           - '2.0.x'
+          - '2.2.x'
           - 'stable'
         os:
           - ubuntu-latest

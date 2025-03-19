@@ -56,6 +56,3 @@ proc runCalc*(x: NumpyArray[float64]) : tuple[elapsed: float64, value: float64] 
       s += doStuff x{i}
   result = (elapsed:elapsed, value: s)
 
-when isMainModule:
-  import nimpy/py_lib as lib
-  pyInitLibPath("/Users/regis.caillaud/.pyenv/versions/3.11.9/lib/libpython3.11.dylib")

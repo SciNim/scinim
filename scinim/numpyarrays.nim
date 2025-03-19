@@ -7,7 +7,6 @@ import arraymancer
 import nimpy {.all.}
 import nimpy/[raw_buffers, py_types, py_utils]
 import nimpy/py_lib as lib
-import ./bindings
 
 {.push gcsafe.}
 
@@ -175,65 +174,14 @@ proc asNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
     return initNumpyArray[T](ar)
 
 proc ndArrayFromPtr*[T](t: ptr T, shape: seq[int]): NumpyArray[T] =
-  # let np = pyImport("numpy")
-  # let py_array_type = dtype(T)
-  # # Just a trick to force an initialization of a Numpy Array of the correct size
-  # result = asNumpyArray[T](
-  #   nimpy.callMethod(np, "zeros", shape, py_array_type)
-  # )
-  # var bsizes = result.len*(sizeof(T) div sizeof(uint8))
-  # copyMem(addr(result.data[0]), t, bsizes)
-
-  # let
-  #   nd = len(shape)
-  #   dims = shape.map(x => csize_t(x))
-  #   pdims = addr dims[0]
-  # var tmp = NumpyArrayZeros[T](nd, pdims)
-  # result = asNumpyArray[T](tmp[])
-
-  let
-    nelem = shape.foldl(a * b, 1)
-    bsizes = nelem*(sizeof(T) div sizeof(uint8))
-
-  # # copyMem the data
-  # # The memory used by a numpy is a sys.getsizeof(array) - array.nbytes.
-  # # Assuming a first order solution : C + ndim*x.
-  # # Testing for different ndim with identical array size : {4: 160, 3: 144, 5: 176, 2: 128, 1: 112}
-  # # This gives => x=16 and C=96
-  # let total_size = bsizes + len(shape)*16 + 96
-  # var
-  #   v = pyAlloc(total_size)
-  #   nlen = shape.foldl(a * b, 1)
-  #   strides = newSeq[int](len(shape))
-  #   size = 1
-
-  # for i in countdown(shape.len() - 1, 0):
-  #   strides[i] = size
-  #   size *= shape[i]
-
-  # echo "nlen=", nlen
-  # echo "shape=", shape
-  # echo "strides=", strides
-  # echo pyLib.isNil()
-
-  # let
-  #   ppylen     = nimValueToPy(nlen)
-  #   ppyshape   = nimValueToPy(shape)
-  #   ppystrides = nimValueToPy(strides)
-
-  # # var
-  # #   r = pyLib.PyObject_SetAttrString(v, "len", pylen)
-  # # r = r + pyLib.PyObject_SetAttrString(v, "shape", pyshape)
-  # # r = r + pyLib.PyObject_SetAttrString(v, "strides", pystrides)
-  # # if unlikely r != 0: raisePythonError()
-
-  # var vv = newPyObject(v)
-  # setAttrAux(vv, "len", ppylen)
-  # setAttrAux(vv, "shape", ppyshape)
-  # setAttrAux(vv, "strides", ppystrides)
-
-  # result = asNumpyArray[T](vv)
-  copyMem(addr(result.data[0]), t, bsizes)
+   let np = pyImport("numpy")
+   let py_array_type = dtype(T)
+   # Just a trick to force an initialization of a Numpy Array of the correct size
+   result = asNumpyArray[T](
+     nimpy.callMethod(np, "zeros", shape, py_array_type)
+   )
+   var bsizes = result.len*(sizeof(T) div sizeof(uint8))
+   copyMem(addr(result.data[0]), t, bsizes)
 
 proc ndArrayFromPtr*[T](t: ptr UncheckedArray[T], shape: seq[int]): NumpyArray[T] =
   result = ndArrayFromPtr[T](cast[ptr T](t), shape)
