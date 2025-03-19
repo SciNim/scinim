@@ -26,6 +26,7 @@ jobs:
           - ubuntu-latest
           - windows-latest
           - macOS-latest
+
     name: '${{ matrix.nim }} (${{ matrix.os }})'
     steps:
       - name: Checkout
@@ -40,7 +41,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup MSYS2 (Windows)
-        if: ${{matrix.target == 'windows'}}
+        if: ${{matrix.os == 'windows-latest'}}
         uses: msys2/setup-msys2@v2
         with:
           path-type: inherit
@@ -48,18 +49,18 @@ jobs:
           install: base-devel git mingw-w64-x86_64-toolchain
 
       - name: Install dependencies (Ubuntu)
-        if: ${{matrix.target == 'ubuntu'}}
+        if: ${{matrix.os == 'ubuntu-latest'}}
         run: |
           sudo apt-get update
           sudo apt-get install -y python-numpy python3-numpy
 
       - name: Install dependencies (OSX)
-        if: ${{matrix.target == 'macos'}}
+        if: ${{matrix.os == 'macOS-latest'}}
         run: |
           brew install numpy
 
       - name: Install dependencies (Windows)
-        if: ${{matrix.target == 'windows'}}
+        if: ${{matrix.os == 'windows-latest'}}
         shell: msys2 {0}
         run: |
           pacman -Syu --noconfirm
