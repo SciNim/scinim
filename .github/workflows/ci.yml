@@ -48,7 +48,7 @@ jobs:
           install: base-devel git mingw-w64-x86_64-toolchain
 
       - name: Install dependencies (Ubuntu)
-        if: ${{matrix.target == 'linux'}}
+        if: ${{matrix.target == 'ubuntu'}}
         run: |
           sudo apt-get update
           sudo apt-get install -y python-numpy python3-numpy
