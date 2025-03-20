@@ -4,6 +4,10 @@ import nimpy
 import ../scinim/numpyarrays
 import unittest
 
+when defined(osx):
+  import nimpy/py_lib as lib
+  pyInitLibPath("/Users/regis.caillaud/.pyenv/versions/3.11.9/lib/libpython3.11.dylib")
+
 proc test(arg: tuple[s: string]) =
   suite arg.s:
     test "int":
@@ -70,9 +74,8 @@ proc test(arg: tuple[s: string]) =
 
 
 when isMainModule:
-  #test((s: "toTensor, toNdArray in main thread"))
-  ## XXX: Running both is currently broken, due to the python interpreter
-  ## being in a bad state after one?
-  var thr: Thread[tuple[s: string]]
-  createThread(thr, test, (s: "toTensor, toNdArray in external thread"))
-  joinThread(thr)
+  test((s: "toTensor, toNdArray in main thread"))
+  # Disable for now
+  #var thr: Thread[tuple[s: string]]
+  #createThread(thr, test, (s: "toTensor, toNdArray in external thread"))
+  #joinThread(thr)

@@ -1,13 +1,12 @@
-import std/sequtils
-import std/strformat
-import std/tables
+import std/[sequtils, strformat, tables, sugar]
 
 import threading/smartptrs
 
 import arraymancer
 
-import nimpy
-import nimpy/[raw_buffers, py_types]
+import nimpy {.all.}
+import nimpy/[raw_buffers, py_types, py_utils]
+import nimpy/py_lib as lib
 
 {.push gcsafe.}
 
@@ -93,6 +92,7 @@ type
     pyBuf: SharedPtr[PyBuffer] # to keep track of the buffer so that we can release it
     data*: ptr UncheckedArray[T] # this will be the raw data
     shape*: seq[int]
+    strides*: seq[int]
     len*: int
 
 proc release*(b: var PyBuffer) =
@@ -110,6 +110,9 @@ proc raw(x: var SharedPtr[PyBuffer]): var RawPyBuffer =
 proc obj*[T](x: NumpyArray[T]): PyObject =
   pyValueToNim(x.pyBuf.raw.obj, result)
 
+proc ndim*[T](ar: NumpyArray[T]) : cint {.noSideEffect, inline.} =
+  ar.pyBuf.raw.ndim
+
 proc dtype*[T](ar: NumpyArray[T]): PyObject =
   return dtype(T)
 
@@ -121,15 +124,42 @@ proc pyprint*[T](ar: NumpyArray[T]) =
   let py = pyBuiltinsModule()
   discard nimpy.callMethod(py, "print", ar)
 
+proc toUnsafeView*[T](ndArray: NumpyArray[T]): ptr UncheckedArray[T] {.noSideEffect, inline.} =
+  ndArray.data
+
+proc check_c_contiguous*[T](ar: NumpyArray[T]) : bool =
+  ar.data.c_contiguous.to(bool)
+
+proc check_f_contiguous*[T](ar: NumpyArray[T]) : bool =
+  ar.data.f_contiguous.to(bool)
+
 proc initNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
   result.pyBuf = newSharedPtr(PyBuffer())
+  let f = sizeof(T) div sizeof(byte)
+  result.strides = ar.data.strides.to(seq[int]).map(x => (x div f))
   ar.getBuffer(result.pyBuf.raw, PyBUF_WRITABLE or PyBUF_ND)
   let shapear = cast[ptr UncheckedArray[Py_ssize_t]](result.pyBuf.raw.shape)
   for i in 0 ..< result.pyBuf.raw.ndim:
     let dimsize = shapear[i].int # py_ssize_t is csize
     result.shape.add dimsize
+
   result.len = result.shape.foldl(a * b, 1)
   result.data = cast[ptr UncheckedArray[T]](result.pyBuf.raw.buf)
+
+proc pyValueToNim*[T: SomeNumber](v: PPyObject, o: var NumpyArray[T]) {.inline.} =
+  var vv = newPyObject(v)
+  o = initNumpyArray[T](vv)
+
+proc isContiguous*[T](ar: NumpyArray[T]) : bool =
+  result = ar.check_c_contiguous() or ar.check_f_contiguous()
+
+proc asContiguous*[T](ar: NumpyArray[T]) : NumpyArray[T] =
+  let np = pyImport("numpy")
+  result = pyValueToNim[T](np.ascontiguousarray(ar))
+
+proc numpyArrayToTensorView*[T](ndArray: NumpyArray[T]): Tensor[T] {.noSideEffect, inline.}=
+  var buf = cast[ptr T](toUnsafeView(ndArray))
+  result = fromBuffer[T](buf, ndArray.shape)
 
 proc asNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
   ## some PyObject that points to a numpy array
@@ -144,18 +174,17 @@ proc asNumpyArray*[T](ar: sink PyObject): NumpyArray[T] =
     return initNumpyArray[T](ar)
 
 proc ndArrayFromPtr*[T](t: ptr T, shape: seq[int]): NumpyArray[T] =
-  let np = pyImport("numpy")
-  let py_array_type = dtype(T)
-  # Just a trick to force an initialization of a Numpy Array of the correct size
-  result = asNumpyArray[T](
-    nimpy.callMethod(np, "zeros", shape, py_array_type)
-  )
-  # copyMem the data
-  var bsizes = result.len*(sizeof(T) div sizeof(uint8))
-  copyMem(addr(result.data[0]), t, bsizes)
+   let np = pyImport("numpy")
+   let py_array_type = dtype(T)
+   # Just a trick to force an initialization of a Numpy Array of the correct size
+   result = asNumpyArray[T](
+     nimpy.callMethod(np, "zeros", shape, py_array_type)
+   )
+   var bsizes = result.len*(sizeof(T) div sizeof(uint8))
+   copyMem(addr(result.data[0]), t, bsizes)
 
-proc toUnsafeView*[T](ndArray: NumpyArray[T]): ptr UncheckedArray[T] =
-  ndArray.data
+proc ndArrayFromPtr*[T](t: ptr UncheckedArray[T], shape: seq[int]): NumpyArray[T] =
+  result = ndArrayFromPtr[T](cast[ptr T](t), shape)
 
 # Arraymancer only
 proc numpyArrayToTensor[T](ndArray: NumpyArray[T]): Tensor[T] =
@@ -173,7 +202,6 @@ proc toTensor*[T](pyobj: PyObject): Tensor[T] =
 # Convert Tensor to RawPyBuffer
 proc ndArrayFromTensor[T](t: Tensor[T]): NumpyArray[T] =
   # Reshape PyObject to Arraymancer Tensor
-  let np = pyImport("numpy")
   var shape = t.shape.toSeq()
   var t = asContiguous(t, rowMajor)
   var buf = cast[ptr T](toUnsafeView(t))
@@ -185,4 +213,83 @@ proc toNdArray*[T](t: Tensor[T]): NumpyArray[T] =
 proc pyValueToNim*[T](ar: NumpyArray[T], o: var Tensor[T]) {.inline.} =
   o = toTensor(ar)
 
+proc initNumpyArray*[T](shape: seq[int]) : NumpyArray[T] =
+  ## init np array from shape
+  let np = pyImport("numpy")
+  let py_array_type = dtype(T)
+  result = asNumpyArray[T](
+    nimpy.callMethod(np, "zeros", shape, py_array_type)
+  )
+
+# Indexing
+{.push noSideEffect, inline.}
+
+func checkIndex[T](ndArray: NumpyArray[T], idx: varargs[int]) =
+  if unlikely(idx.len != ndArray.ndim):
+    raise newException(
+      IndexDefect, "Number of arguments: " &
+                  $(idx.len) &
+                  ", is different from tensor ndim: " &
+                  $(ndArray.ndim)
+    )
+  for i in 0 ..< ndArray.shape.len():
+    if unlikely(not(0 <= idx[i] and idx[i] < ndArray.shape[i])):
+      raise newException(
+        IndexDefect, "Out-of-bounds access: " &
+                    "Tensor of shape " & $ndArray.shape &
+                    " being indexed by " & $idx
+      )
+
+func checkContiguousIndex[T](ndArray: NumpyArray[T], idx: int) =
+  if unlikely(idx < 0 or idx >= ndArray.size):
+    raise newException(IndexDefect, "Invalid contigous index: " &
+                    $idx &
+                    " while tensor size is" &
+                    $(ndArray.size))
+
+proc getIndex*[T](ndArray: NumpyArray[T], idx: varargs[int]): int =
+  when compileOption("boundChecks"):
+    ndArray.checkIndex(idx)
+
+  result = 0
+  # result =  ndArray.offset # N/A we assume offset is 0.0
+  for i in 0..<idx.len:
+    result += ndArray.strides[i]*idx[i]
+
+proc getContiguousIndex*[T](ndArray: NumpyArray[T], idx: int): int =
+  when compileOption("boundChecks"):
+    checkContiguousIndex(idx)
+
+  result = 0
+  # result =  ndArray.offset # N/A we assume offset is 0.0
+  if idx != 0:
+    var z = 1
+    for i in countdown(ndArray.ndim - 1,0):
+      let coord = (idx div z) mod ndArray.shape[i]
+      result += coord*ndArray.strides[i]
+      z *= ndArray.shape[i]
+
+proc atContiguousIndex*[T](ndArray: NumpyArray[T], idx: int): var T =
+  toUnsafeView(ndArray)[ndArray.getContiguousIndex(idx)]
+
+proc atIndex*[T](ndArray: NumpyArray[T], idx: varargs[int]): T =
+  toUnsafeView(ndArray)[getIndex(ndArray, idx)]
+
+template `[]`*[T](ndArray: NumpyArray[T], idx: varargs[int]): T =
+  atIndex(ndArray, idx)
+
+proc atIndexMut*[T](ndArray: NumpyArray[T], idx: varargs[int], val: T) =
+  toUnsafeView(ndArray)[getIndex(ndArray, idx)] = val
+
+template `[]=`*[T](ndArray: NumpyArray[T], idx: varargs[int], val: T) =
+  atIndexMut(ndArray, idx, val)
+
+# Is this worth it ?
+template `{}`*[T](ndArray: NumpyArray[T], idx: int): T =
+  toUnsafeView(ndArray)[idx]
+
+template `{}=`*[T](ndArray: NumpyArray[T], idx: int, val: T) =
+  toUnsafeView(ndArray)[idx] = val
+
+{.pop.}
 {.pop.}
